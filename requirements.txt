@@ -1,7 +1,7 @@
 streamlit
 torch
+torchvision
 transformers
 accelerate
 pillow
 sentencepiece
-torchvision
