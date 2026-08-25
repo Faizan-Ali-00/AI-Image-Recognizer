@@ -16,7 +16,7 @@ st.set_page_config(
 
 
 # ============================================================
-# MODEL CONFIGURATION
+# MODEL
 # ============================================================
 
 MODEL_NAME = "HuggingFaceTB/SmolVLM-256M-Instruct"
@@ -50,7 +50,7 @@ def load_model():
 st.title("🖼️ AI Image Analyzer")
 
 st.caption(
-    "Upload an image and AI will describe the complete visible scene."
+    "Upload an image and AI will analyze the complete visible scene."
 )
 
 
@@ -60,17 +60,28 @@ st.caption(
 
 with st.sidebar:
 
-    st.header("ℹ️ About")
+    st.header("ℹ️ About This App")
 
     st.write(
-        "This application uses "
-        "SmolVLM-256M-Instruct to analyze uploaded images."
+        "AI Image Analyzer uses a lightweight vision-language "
+        "model to understand uploaded images."
     )
 
     st.write(
-        "It looks for people, objects, background, "
-        "positions, environment, colors, and other "
-        "clearly visible details."
+        "The analyzer looks at:"
+    )
+
+    st.markdown(
+        """
+        - 👤 People
+        - 📦 Main objects
+        - 🌄 Background
+        - 📍 Object positions
+        - 🏞️ Environment
+        - 🎨 Colors
+        - 💡 Lighting
+        - 🔎 Small visible details
+        """
     )
 
     st.divider()
@@ -80,12 +91,12 @@ with st.sidebar:
     )
 
     st.caption(
-        "Built with Streamlit + Hugging Face Transformers"
+        "Built with Streamlit and Hugging Face Transformers"
     )
 
 
 # ============================================================
-# IMAGE UPLOAD
+# UPLOAD IMAGE
 # ============================================================
 
 uploaded_file = st.file_uploader(
@@ -100,7 +111,7 @@ uploaded_file = st.file_uploader(
 
 
 # ============================================================
-# IMAGE PROCESSING
+# IMAGE
 # ============================================================
 
 if uploaded_file:
@@ -140,9 +151,6 @@ if uploaded_file:
     )
 
 
-    st.write("")
-
-
     # ========================================================
     # ANALYZE BUTTON
     # ========================================================
@@ -166,42 +174,69 @@ if uploaded_file:
 
 
                 # ====================================================
-                # IMAGE ANALYSIS PROMPT
+                # PROMPT
                 # ====================================================
 
                 prompt = """
-Look carefully at the ENTIRE image before answering.
+Analyze the ENTIRE image carefully before answering.
 
-Describe what is actually visible in the scene.
+Do not focus only on the largest object.
 
-Write ONE clear natural description, not a numbered list.
+Inspect the image in this order:
 
-Make sure to cover:
+1. FOREGROUND
+Look at the objects closest to the viewer.
 
-- People: mention every clearly visible person and what they are doing.
-- Main objects: identify the important objects.
-- Background: describe objects and scenery behind the main subjects.
-- Position: explain important left, right, center, foreground, and background positions.
-- Environment: identify the visible setting or surroundings.
-- Visual details: mention important colors, shapes, materials, lighting, and other visible details.
+2. MIDDLE GROUND
+Look for objects between the foreground and background.
 
-Look at the edges and corners of the image as well as the center.
+3. BACKGROUND
+Carefully inspect everything behind the main objects.
 
-IMPORTANT:
-Do not repeat information.
-Do not repeat sentences.
-Do not create numbered items.
-Do not copy or repeat these instructions.
-Do not invent objects, people, actions, locations, or details.
-Only describe things that can actually be seen.
-If there are no people, simply state that no people are visible.
-If something is unclear, say that it is unclear.
-Keep the final description concise but complete.
+4. EDGES AND CORNERS
+Check the left edge, right edge, top edge, bottom edge,
+and all four corners for additional objects or scenery.
+
+5. PEOPLE
+Identify every clearly visible person and describe what
+they are doing.
+
+6. ENVIRONMENT
+Describe the location, surroundings, sky, ground,
+buildings, landscape, weather, and atmosphere.
+
+7. VISUAL DETAILS
+Mention important colors, shapes, materials, lighting,
+textures, signs, flags, vehicles, furniture, animals,
+or other clearly visible objects.
+
+8. POSITION
+Explain where important objects are located using
+terms such as left, right, center, foreground,
+middle ground, and background.
+
+Write ONE natural description of approximately
+80 to 150 words.
+
+IMPORTANT RULES:
+
+- Describe only things actually visible.
+- Do not guess.
+- Do not invent people or objects.
+- Do not repeat information.
+- Do not repeat sentences.
+- Do not create 20, 50, or 100 numbered observations.
+- Do not copy the instructions.
+- Do not stop after describing only the main object.
+- Include the background if it is visible.
+- If there are no people, say that no people are clearly visible.
+- If a detail is uncertain, do not present it as a fact.
+- Give one coherent description.
 """
 
 
                 # ====================================================
-                # CHAT MESSAGE
+                # MESSAGE
                 # ====================================================
 
                 messages = [
@@ -221,7 +256,7 @@ Keep the final description concise but complete.
 
 
                 # ====================================================
-                # CREATE CHAT TEMPLATE
+                # CHAT TEMPLATE
                 # ====================================================
 
                 text = processor.apply_chat_template(
@@ -231,7 +266,7 @@ Keep the final description concise but complete.
 
 
                 # ====================================================
-                # PROCESS IMAGE + TEXT
+                # PROCESS IMAGE
                 # ====================================================
 
                 inputs = processor(
@@ -254,14 +289,14 @@ Keep the final description concise but complete.
 
 
                 # ====================================================
-                # GENERATE DESCRIPTION
+                # GENERATE
                 # ====================================================
 
                 with torch.inference_mode():
 
                     output_ids = model.generate(
                         **inputs,
-                        max_new_tokens=180,
+                        max_new_tokens=250,
                         do_sample=False,
                         repetition_penalty=1.15,
                         no_repeat_ngram_size=4
@@ -283,7 +318,7 @@ Keep the final description concise but complete.
 
 
                 # ====================================================
-                # DECODE RESPONSE
+                # DECODE
                 # ====================================================
 
                 answer = processor.batch_decode(
@@ -299,17 +334,20 @@ Keep the final description concise but complete.
                 if not answer:
 
                     st.warning(
-                        "The model returned an empty description."
+                        "The model returned no description."
                     )
 
                 else:
 
-                    # Remove accidental repeated paragraphs
+                    # ------------------------------------------------
+                    # Remove duplicate lines
+                    # ------------------------------------------------
+
                     lines = answer.splitlines()
 
                     cleaned_lines = []
 
-                    previous_line = ""
+                    seen_lines = set()
 
                     for line in lines:
 
@@ -318,12 +356,18 @@ Keep the final description concise but complete.
                         if not line:
                             continue
 
-                        if line.lower() == previous_line.lower():
+                        normalized = line.lower()
+
+                        if normalized in seen_lines:
                             continue
 
-                        cleaned_lines.append(line)
+                        seen_lines.add(
+                            normalized
+                        )
 
-                        previous_line = line
+                        cleaned_lines.append(
+                            line
+                        )
 
 
                     answer = " ".join(
@@ -331,8 +375,52 @@ Keep the final description concise but complete.
                     )
 
 
+                    # ------------------------------------------------
+                    # Remove excessive repeated sentences
+                    # ------------------------------------------------
+
+                    sentences = answer.split(". ")
+
+                    final_sentences = []
+
+                    seen_sentences = set()
+
+                    for sentence in sentences:
+
+                        sentence = sentence.strip()
+
+                        if not sentence:
+                            continue
+
+                        normalized = (
+                            sentence
+                            .lower()
+                            .replace(".", "")
+                        )
+
+                        if normalized in seen_sentences:
+                            continue
+
+                        seen_sentences.add(
+                            normalized
+                        )
+
+                        final_sentences.append(
+                            sentence
+                        )
+
+
+                    answer = ". ".join(
+                        final_sentences
+                    )
+
+
+                    if answer and not answer.endswith("."):
+                        answer += "."
+
+
                     # ====================================================
-                    # DISPLAY RESULT
+                    # RESULT
                     # ====================================================
 
                     st.subheader(
