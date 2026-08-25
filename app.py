@@ -5,7 +5,7 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 
 
 # ============================================================
-# PAGE
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -14,19 +14,17 @@ st.set_page_config(
     layout="centered"
 )
 
-st.title("🖼️ AI Image Analyzer")
-
-st.write(
-    "Upload an image and let AI describe what is happening in it."
-)
-
 
 # ============================================================
-# MODEL
+# MODEL CONFIGURATION
 # ============================================================
 
 MODEL_NAME = "HuggingFaceTB/SmolVLM-256M-Instruct"
 
+
+# ============================================================
+# LOAD MODEL
+# ============================================================
 
 @st.cache_resource
 def load_model():
@@ -46,31 +44,108 @@ def load_model():
 
 
 # ============================================================
+# HEADER
+# ============================================================
+
+st.title("🖼️ AI Image Analyzer")
+
+st.caption(
+    "Upload an image and AI will describe the complete visible scene."
+)
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.header("ℹ️ About")
+
+    st.write(
+        "This application uses "
+        "SmolVLM-256M-Instruct to analyze uploaded images."
+    )
+
+    st.write(
+        "It looks for people, objects, background, "
+        "positions, environment, colors, and other "
+        "clearly visible details."
+    )
+
+    st.divider()
+
+    st.caption(
+        "Model: SmolVLM-256M-Instruct"
+    )
+
+    st.caption(
+        "Built with Streamlit + Hugging Face Transformers"
+    )
+
+
+# ============================================================
 # IMAGE UPLOAD
 # ============================================================
 
 uploaded_file = st.file_uploader(
     "Upload an image",
-    type=["jpg", "jpeg", "png", "webp"]
+    type=[
+        "jpg",
+        "jpeg",
+        "png",
+        "webp"
+    ]
 )
 
 
 # ============================================================
-# ANALYZE
+# IMAGE PROCESSING
 # ============================================================
 
 if uploaded_file:
 
-    image = Image.open(
-        uploaded_file
-    ).convert("RGB")
+    try:
+
+        image = Image.open(
+            uploaded_file
+        ).convert("RGB")
+
+    except Exception:
+
+        st.error(
+            "The uploaded file is not a valid image."
+        )
+
+        st.stop()
+
+
+    # --------------------------------------------------------
+    # Resize large images
+    # --------------------------------------------------------
+
+    image.thumbnail(
+        (768, 768)
+    )
+
+
+    # --------------------------------------------------------
+    # Display image
+    # --------------------------------------------------------
 
     st.image(
         image,
         caption="Uploaded Image",
         width="stretch"
     )
-    image.thumbnail((768, 768))
+
+
+    st.write("")
+
+
+    # ========================================================
+    # ANALYZE BUTTON
+    # ========================================================
 
     if st.button(
         "🔍 Analyze Image",
@@ -78,62 +153,55 @@ if uploaded_file:
     ):
 
         with st.spinner(
-            "AI is analyzing the image..."
+            "AI is analyzing the entire image..."
         ):
 
             try:
+
+                # ====================================================
+                # LOAD MODEL
+                # ====================================================
 
                 model, processor = load_model()
 
 
                 # ====================================================
-                # PROMPT
+                # IMAGE ANALYSIS PROMPT
                 # ====================================================
 
                 prompt = """
-Analyze the entire image from top to bottom and left to right.
+Look carefully at the ENTIRE image before answering.
 
-Give me a complete description of everything that can be clearly seen.
+Describe what is actually visible in the scene.
 
-Your response MUST contain these sections:
+Write ONE clear natural description, not a numbered list.
 
-1. PEOPLE
-Describe every visible person and what they are doing.
-If there are no people, say "No people visible."
+Make sure to cover:
 
-2. MAIN OBJECTS
-Describe every important object in the foreground and middle of the image.
+- People: mention every clearly visible person and what they are doing.
+- Main objects: identify the important objects.
+- Background: describe objects and scenery behind the main subjects.
+- Position: explain important left, right, center, foreground, and background positions.
+- Environment: identify the visible setting or surroundings.
+- Visual details: mention important colors, shapes, materials, lighting, and other visible details.
 
-3. BACKGROUND
-Carefully describe what is behind the main objects.
-Include furniture, walls, doors, windows, shelves, buildings,
-trees, vehicles, screens, decorations, or other visible objects.
+Look at the edges and corners of the image as well as the center.
 
-4. POSITION
-Explain where important objects are located:
-left, right, center, front, behind, above, below, etc.
-
-5. ENVIRONMENT
-Describe the overall setting, such as a room, office, street,
-kitchen, bedroom, outdoor area, or other clearly visible location.
-
-6. DETAILS
-Mention colors, shapes, materials, lighting, and other clearly
-visible details.
-
-IMPORTANT RULES:
-- Examine the WHOLE image, not only the main objects.
-- Look at the background before answering.
-- Do not ignore objects near the edges of the image.
-- Do not repeat these instructions.
-- Do not invent anything that cannot be seen.
-- If something is unclear, say that it is unclear.
-- If a section has nothing visible, explicitly say so.
-- Write a natural, detailed description.
+IMPORTANT:
+Do not repeat information.
+Do not repeat sentences.
+Do not create numbered items.
+Do not copy or repeat these instructions.
+Do not invent objects, people, actions, locations, or details.
+Only describe things that can actually be seen.
+If there are no people, simply state that no people are visible.
+If something is unclear, say that it is unclear.
+Keep the final description concise but complete.
 """
 
+
                 # ====================================================
-                # INPUT
+                # CHAT MESSAGE
                 # ====================================================
 
                 messages = [
@@ -153,7 +221,7 @@ IMPORTANT RULES:
 
 
                 # ====================================================
-                # APPLY CHAT TEMPLATE
+                # CREATE CHAT TEMPLATE
                 # ====================================================
 
                 text = processor.apply_chat_template(
@@ -173,6 +241,10 @@ IMPORTANT RULES:
                 )
 
 
+                # ====================================================
+                # MOVE INPUTS TO MODEL
+                # ====================================================
+
                 inputs = {
                     key: value.to(model.device)
                     if hasattr(value, "to")
@@ -182,15 +254,17 @@ IMPORTANT RULES:
 
 
                 # ====================================================
-                # GENERATE
+                # GENERATE DESCRIPTION
                 # ====================================================
 
                 with torch.inference_mode():
 
                     output_ids = model.generate(
                         **inputs,
-                        max_new_tokens=7000,
-                        do_sample=False
+                        max_new_tokens=180,
+                        do_sample=False,
+                        repetition_penalty=1.15,
+                        no_repeat_ngram_size=4
                     )
 
 
@@ -199,16 +273,17 @@ IMPORTANT RULES:
                 # ====================================================
 
                 input_length = (
-                    inputs["input_ids"].shape[1]
+                    inputs["input_ids"].shape[-1]
                 )
 
                 generated_ids = output_ids[
-                    :, input_length:
+                    :,
+                    input_length:
                 ]
 
 
                 # ====================================================
-                # DECODE
+                # DECODE RESPONSE
                 # ====================================================
 
                 answer = processor.batch_decode(
@@ -218,21 +293,54 @@ IMPORTANT RULES:
 
 
                 # ====================================================
-                # DISPLAY
+                # CLEAN RESPONSE
                 # ====================================================
 
-                st.subheader(
-                    "🧠 AI Description"
-                )
-
-                if answer:
-
-                    st.write(answer)
-
-                else:
+                if not answer:
 
                     st.warning(
                         "The model returned an empty description."
+                    )
+
+                else:
+
+                    # Remove accidental repeated paragraphs
+                    lines = answer.splitlines()
+
+                    cleaned_lines = []
+
+                    previous_line = ""
+
+                    for line in lines:
+
+                        line = line.strip()
+
+                        if not line:
+                            continue
+
+                        if line.lower() == previous_line.lower():
+                            continue
+
+                        cleaned_lines.append(line)
+
+                        previous_line = line
+
+
+                    answer = " ".join(
+                        cleaned_lines
+                    )
+
+
+                    # ====================================================
+                    # DISPLAY RESULT
+                    # ====================================================
+
+                    st.subheader(
+                        "🧠 AI Description"
+                    )
+
+                    st.write(
+                        answer
                     )
 
 
@@ -245,3 +353,14 @@ IMPORTANT RULES:
                 st.code(
                     str(e)
                 )
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.divider()
+
+st.caption(
+    "AI Image Analyzer • SmolVLM-256M-Instruct"
+)
