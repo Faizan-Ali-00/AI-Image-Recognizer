@@ -1,454 +1,271 @@
 import streamlit as st
-import torch
+from groq import Groq
 from PIL import Image
-from transformers import AutoProcessor, AutoModelForImageTextToText
-
+import base64
+import io
+import os
+import re
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
     page_title="AI Image Analyzer",
     page_icon="🖼️",
-    layout="centered"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+# ============================================================
+# CUSTOM CSS
+# ============================================================
+
+st.markdown("""
+<style>
+    .stApp { background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header[data-testid="stHeader"] {background: transparent;}
+
+    .main-title {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 3rem; font-weight: 800; text-align: center;
+        padding: 1rem 0 0.5rem 0; margin-bottom: 0;
+    }
+    .subtitle { text-align: center; color: #a0a0b0; font-size: 1rem; margin-bottom: 2rem; }
+
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        display: block !important;
+    }
+    section[data-testid="stSidebar"] h2 { color: #667eea; }
+
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white; border: none; border-radius: 10px;
+        padding: 0.5rem 1rem; font-weight: 600;
+        transition: all 0.3s ease; width: 100%;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .description-box {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-left: 4px solid #667eea;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        font-size: 1.05rem;
+        line-height: 1.7;
+    }
+
+    .stAlert { border-radius: 10px; background: rgba(255, 255, 255, 0.05); }
+    p, h1, h2, h3, h4, h5, h6, span, div { color: #e0e0e8; }
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# API KEY
+# ============================================================
+
+try:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+except Exception:
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
+    st.error("🔑 **Groq API key not found.**")
+    st.info("Add `GROQ_API_KEY` to `.env` or Streamlit Secrets.")
+    st.stop()
 
 # ============================================================
 # MODEL
 # ============================================================
 
-MODEL_NAME = "HuggingFaceTB/SmolVLM-256M-Instruct"
-
+# Groq's current vision model (supports images)
+MODEL_NAME = "qwen/qwen3.6-27b"
 
 # ============================================================
-# LOAD MODEL
+# CLIENT
 # ============================================================
 
 @st.cache_resource
-def load_model():
+def get_client():
+    return Groq(api_key=GROQ_API_KEY)
 
-    processor = AutoProcessor.from_pretrained(
-        MODEL_NAME
-    )
+client = get_client()
 
-    model = AutoModelForImageTextToText.from_pretrained(
-        MODEL_NAME,
-        torch_dtype=torch.float32
-    )
+# ============================================================
+# CLEAN RESPONSE (removes thinking blocks)
+# ============================================================
 
-    model.eval()
-
-    return model, processor
-
+def clean_response(text):
+    if not text:
+        return ""
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    cleaned = re.sub(r"</?think>", "", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 # ============================================================
 # HEADER
 # ============================================================
 
-st.title("🖼️ AI Image Analyzer")
-
-st.caption(
-    "Upload an image and AI will analyze the complete visible scene."
+st.markdown('<h1 class="main-title">🖼️ AI Image Analyzer</h1>', unsafe_allow_html=True)
+st.markdown(
+    '<p class="subtitle">Upload an image and AI will describe the entire visible scene</p>',
+    unsafe_allow_html=True
 )
-
 
 # ============================================================
 # SIDEBAR
 # ============================================================
 
 with st.sidebar:
-
-    st.header("ℹ️ About This App")
-
-    st.write(
-        "AI Image Analyzer uses a lightweight vision-language "
-        "model to understand uploaded images."
+    st.markdown("## ℹ️ About")
+    st.markdown(
+        "AI Image Analyzer uses a vision model to understand "
+        "and describe uploaded images in natural language."
     )
 
-    st.write(
-        "The analyzer looks at:"
-    )
-
+    st.markdown("### 🔍 What it detects")
     st.markdown(
         """
-        - 👤 People
+        - 👤 People & actions
         - 📦 Main objects
-        - 🌄 Background
+        - 🌄 Background & scenery
         - 📍 Object positions
-        - 🏞️ Environment
-        - 🎨 Colors
-        - 💡 Lighting
+        - 🏞️ Environment & setting
+        - 🎨 Colors, shapes, materials
+        - 💡 Lighting & atmosphere
         - 🔎 Small visible details
         """
     )
 
-    st.divider()
-
-    st.caption(
-        "Model: SmolVLM-256M-Instruct"
-    )
-
-    st.caption(
-        "Built with Streamlit and Hugging Face Transformers"
-    )
-
+    st.markdown("---")
+    st.markdown("### ⚡ Powered by")
+    st.markdown(f"**Model:** `{MODEL_NAME}`")
 
 # ============================================================
 # UPLOAD IMAGE
 # ============================================================
 
 uploaded_file = st.file_uploader(
-    "Upload an image",
-    type=[
-        "jpg",
-        "jpeg",
-        "png",
-        "webp"
-    ]
+    "📤 Upload an image",
+    type=["jpg", "jpeg", "png", "webp"]
 )
 
-
 # ============================================================
-# IMAGE
+# IMAGE ANALYSIS
 # ============================================================
 
 if uploaded_file:
-
     try:
-
-        image = Image.open(
-            uploaded_file
-        ).convert("RGB")
-
+        image = Image.open(uploaded_file).convert("RGB")
     except Exception:
-
-        st.error(
-            "The uploaded file is not a valid image."
-        )
-
+        st.error("The uploaded file is not a valid image.")
         st.stop()
 
+    # Layout: image left, analysis right
+    col1, col2 = st.columns([1, 1])
 
-    # --------------------------------------------------------
-    # Resize large images
-    # --------------------------------------------------------
+    with col1:
+        st.image(image, caption="Uploaded Image", use_container_width=True)
 
-    image.thumbnail(
-        (768, 768)
-    )
+    with col2:
+        st.markdown("### 🧠 Analysis")
+        st.markdown(
+            "Click **Analyze Image** below to generate a description "
+            "of the entire scene."
+        )
 
+        if st.button("🔍 Analyze Image", use_container_width=True):
+            with st.spinner("AI is analyzing the image..."):
+                try:
+                    # Resize for API (max 1024px)
+                    image.thumbnail((1024, 1024))
 
-    # --------------------------------------------------------
-    # Display image
-    # --------------------------------------------------------
+                    # Convert to base64
+                    buffered = io.BytesIO()
+                    image.save(buffered, format="JPEG", quality=85)
+                    img_bytes = buffered.getvalue()
+                    base64_image = base64.b64encode(img_bytes).decode("utf-8")
 
-    st.image(
-        image,
-        caption="Uploaded Image",
-        width="stretch"
-    )
+                    # Vision prompt
+                    prompt = """Analyze the ENTIRE image carefully. Describe what you see in ONE coherent paragraph of about 80 to 150 words.
 
+Cover in order:
+1. Foreground objects (closest to viewer)
+2. Middle ground objects
+3. Background scenery
+4. Edges and corners (any small details)
+5. People and what they are doing (or say no people are visible)
+6. Environment and setting
+7. Colors, shapes, materials, lighting
+8. Positions (left, right, center, etc.)
 
-    # ========================================================
-    # ANALYZE BUTTON
-    # ========================================================
-
-    if st.button(
-        "🔍 Analyze Image",
-        width="stretch"
-    ):
-
-        with st.spinner(
-            "AI is analyzing the entire image..."
-        ):
-
-            try:
-
-                # ====================================================
-                # LOAD MODEL
-                # ====================================================
-
-                model, processor = load_model()
-
-
-                # ====================================================
-                # PROMPT
-                # ====================================================
-
-                prompt = """
-Analyze the ENTIRE image carefully before answering.
-
-Do not focus only on the largest object.
-
-Inspect the image in this order:
-
-1. FOREGROUND
-Look at the objects closest to the viewer.
-
-2. MIDDLE GROUND
-Look for objects between the foreground and background.
-
-3. BACKGROUND
-Carefully inspect everything behind the main objects.
-
-4. EDGES AND CORNERS
-Check the left edge, right edge, top edge, bottom edge,
-and all four corners for additional objects or scenery.
-
-5. PEOPLE
-Identify every clearly visible person and describe what
-they are doing.
-
-6. ENVIRONMENT
-Describe the location, surroundings, sky, ground,
-buildings, landscape, weather, and atmosphere.
-
-7. VISUAL DETAILS
-Mention important colors, shapes, materials, lighting,
-textures, signs, flags, vehicles, furniture, animals,
-or other clearly visible objects.
-
-8. POSITION
-Explain where important objects are located using
-terms such as left, right, center, foreground,
-middle ground, and background.
-
-Write ONE natural description of approximately
-80 to 150 words.
-
-IMPORTANT RULES:
-
+RULES:
 - Describe only things actually visible.
-- Do not guess.
-- Do not invent people or objects.
+- Do not guess or invent.
 - Do not repeat information.
-- Do not repeat sentences.
-- Do not create 20, 50, or 100 numbered observations.
-- Do not copy the instructions.
-- Do not stop after describing only the main object.
-- Include the background if it is visible.
-- If there are no people, say that no people are clearly visible.
-- If a detail is uncertain, do not present it as a fact.
-- Give one coherent description.
-"""
+- Do not copy these instructions.
+- Do not number your observations.
+- Write ONE natural paragraph.
+- Respond ONLY with the description, no thinking or reasoning."""
 
-
-                # ====================================================
-                # MESSAGE
-                # ====================================================
-
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
+                    # Groq API call with vision
+                    response = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
                             {
-                                "type": "image"
-                            },
-                            {
-                                "type": "text",
-                                "text": prompt
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}"
+                                        }
+                                    }
+                                ]
                             }
-                        ]
-                    }
-                ]
-
-
-                # ====================================================
-                # CHAT TEMPLATE
-                # ====================================================
-
-                text = processor.apply_chat_template(
-                    messages,
-                    add_generation_prompt=True
-                )
-
-
-                # ====================================================
-                # PROCESS IMAGE
-                # ====================================================
-
-                inputs = processor(
-                    text=text,
-                    images=[image],
-                    return_tensors="pt"
-                )
-
-
-                # ====================================================
-                # MOVE INPUTS TO MODEL
-                # ====================================================
-
-                inputs = {
-                    key: value.to(model.device)
-                    if hasattr(value, "to")
-                    else value
-                    for key, value in inputs.items()
-                }
-
-
-                # ====================================================
-                # GENERATE
-                # ====================================================
-
-                with torch.inference_mode():
-
-                    output_ids = model.generate(
-                        **inputs,
-                        max_new_tokens=250,
-                        do_sample=False,
-                        repetition_penalty=1.15,
-                        no_repeat_ngram_size=4
+                        ],
+                        max_tokens=500,
+                        temperature=0.3
                     )
 
+                    answer = response.choices[0].message.content
+                    answer = clean_response(answer)
 
-                # ====================================================
-                # REMOVE INPUT TOKENS
-                # ====================================================
-
-                input_length = (
-                    inputs["input_ids"].shape[-1]
-                )
-
-                generated_ids = output_ids[
-                    :,
-                    input_length:
-                ]
-
-
-                # ====================================================
-                # DECODE
-                # ====================================================
-
-                answer = processor.batch_decode(
-                    generated_ids,
-                    skip_special_tokens=True
-                )[0].strip()
-
-
-                # ====================================================
-                # CLEAN RESPONSE
-                # ====================================================
-
-                if not answer:
-
-                    st.warning(
-                        "The model returned no description."
-                    )
-
-                else:
-
-                    # ------------------------------------------------
-                    # Remove duplicate lines
-                    # ------------------------------------------------
-
-                    lines = answer.splitlines()
-
-                    cleaned_lines = []
-
-                    seen_lines = set()
-
-                    for line in lines:
-
-                        line = line.strip()
-
-                        if not line:
-                            continue
-
-                        normalized = line.lower()
-
-                        if normalized in seen_lines:
-                            continue
-
-                        seen_lines.add(
-                            normalized
+                    if not answer:
+                        st.warning("The model returned no description.")
+                    else:
+                        st.markdown(
+                            f'<div class="description-box">{answer}</div>',
+                            unsafe_allow_html=True
                         )
 
-                        cleaned_lines.append(
-                            line
-                        )
-
-
-                    answer = " ".join(
-                        cleaned_lines
-                    )
-
-
-                    # ------------------------------------------------
-                    # Remove excessive repeated sentences
-                    # ------------------------------------------------
-
-                    sentences = answer.split(". ")
-
-                    final_sentences = []
-
-                    seen_sentences = set()
-
-                    for sentence in sentences:
-
-                        sentence = sentence.strip()
-
-                        if not sentence:
-                            continue
-
-                        normalized = (
-                            sentence
-                            .lower()
-                            .replace(".", "")
-                        )
-
-                        if normalized in seen_sentences:
-                            continue
-
-                        seen_sentences.add(
-                            normalized
-                        )
-
-                        final_sentences.append(
-                            sentence
-                        )
-
-
-                    answer = ". ".join(
-                        final_sentences
-                    )
-
-
-                    if answer and not answer.endswith("."):
-                        answer += "."
-
-
-                    # ====================================================
-                    # RESULT
-                    # ====================================================
-
-                    st.subheader(
-                        "🧠 AI Description"
-                    )
-
-                    st.write(
-                        answer
-                    )
-
-
-            except Exception as e:
-
-                st.error(
-                    "The AI could not analyze the image."
-                )
-
-                st.code(
-                    str(e)
-                )
-
+                except Exception as e:
+                    st.error("⚠️ The AI could not analyze the image.")
+                    st.code(str(e))
 
 # ============================================================
 # FOOTER
 # ============================================================
 
-st.divider()
-
-st.caption(
-    "AI Image Analyzer • SmolVLM-256M-Instruct"
+st.markdown("---")
+st.markdown(
+    '<p style="text-align:center; color:#667eea; font-size:0.85rem;">'
+    '🖼️ AI Image Analyzer'
+    '</p>',
+    unsafe_allow_html=True
 )
