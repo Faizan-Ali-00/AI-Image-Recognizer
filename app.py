@@ -1,26 +1,25 @@
 import streamlit as st
 from groq import Groq
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-from datetime import datetime
+from PIL import Image
+import base64
+import io
 import os
 import re
-import time
+from datetime import datetime
 
 # ============================================================
 # PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
-    page_title="PagePulse — Website Scanner",
-    page_icon="📡",
+    page_title="PixelSage — Image Analyzer",
+    page_icon="🧙",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
 # ============================================================
-# CSS — Live scanner theme (cyan/emerald on deep navy)
+# CSS — Live scanner theme + PixelSage branding
 # ============================================================
 
 st.markdown("""
@@ -88,7 +87,7 @@ st.markdown("""
         }
     }
     .hero-title {
-        font-size: 2.6rem;
+        font-size: 2.8rem;
         font-weight: 900;
         letter-spacing: -1.5px;
         background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%);
@@ -100,7 +99,7 @@ st.markdown("""
     .hero-sub {
         font-size: 0.78rem;
         color: #64748b;
-        letter-spacing: 2px;
+        letter-spacing: 3px;
         margin-top: 0.4rem;
         text-transform: uppercase;
     }
@@ -145,24 +144,20 @@ st.markdown("""
         letter-spacing: 2px;
         font-weight: 600;
         margin: 2rem 0 0.75rem 0;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
     }
 
-    /* Input */
-    .stTextInput input {
-        background: rgba(15, 23, 42, 0.7) !important;
-        border: 1.5px solid #1e293b !important;
-        border-radius: 12px !important;
-        color: #e2e8f0 !important;
-        padding: 0.85rem 1.1rem !important;
-        font-size: 1rem !important;
+    /* Upload */
+    div[data-testid="stFileUploader"] {
+        background: rgba(15, 23, 42, 0.7);
+        border: 1.5px dashed rgba(6, 182, 212, 0.3);
+        border-radius: 16px;
+        padding: 1rem;
+        transition: all 0.3s ease;
         backdrop-filter: blur(10px);
     }
-    .stTextInput input:focus {
-        border-color: #06b6d4 !important;
-        box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15) !important;
+    div[data-testid="stFileUploader"]:hover {
+        border-color: #06b6d4;
+        background: rgba(6, 182, 212, 0.05);
     }
 
     /* Buttons */
@@ -171,7 +166,7 @@ st.markdown("""
         color: #ffffff;
         border: none;
         border-radius: 12px;
-        padding: 0.8rem 1.6rem;
+        padding: 0.85rem 1.6rem;
         font-weight: 700;
         font-size: 0.95rem;
         letter-spacing: 0.5px;
@@ -227,105 +222,6 @@ st.markdown("""
         font-weight: 600;
     }
 
-    /* Score card */
-    .score-card {
-        background: linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(16,185,129,0.05) 100%);
-        border: 1px solid rgba(6, 182, 212, 0.3);
-        border-radius: 20px;
-        padding: 2.5rem 2rem;
-        text-align: center;
-        margin: 1rem 0;
-        backdrop-filter: blur(20px);
-        box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.05),
-            0 20px 60px rgba(0, 0, 0, 0.4);
-    }
-    .score-value {
-        font-size: 5rem;
-        font-weight: 900;
-        line-height: 1;
-        background: linear-gradient(135deg, #06b6d4 0%, #10b981 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 4px 20px rgba(6, 182, 212, 0.4));
-    }
-    .score-label {
-        font-size: 0.75rem;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 3px;
-        margin-top: 0.8rem;
-        font-weight: 600;
-    }
-    .score-note {
-        font-size: 1.05rem;
-        color: #22d3ee;
-        margin-top: 1.2rem;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-    }
-
-    /* Metric bars */
-    .metric-row {
-        margin: 1.1rem 0;
-    }
-    .metric-header {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 0.5rem;
-        font-size: 0.9rem;
-    }
-    .metric-name { color: #cbd5e1; font-weight: 500; }
-    .metric-value { color: #22d3ee; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .metric-bar {
-        width: 100%;
-        height: 10px;
-        background: rgba(30, 41, 59, 0.8);
-        border-radius: 999px;
-        overflow: hidden;
-        position: relative;
-    }
-    .metric-fill {
-        height: 100%;
-        border-radius: 999px;
-        background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%);
-        box-shadow: 0 0 12px rgba(6, 182, 212, 0.6);
-        transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    /* Info grid */
-    .info-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.85rem;
-        margin-top: 1rem;
-    }
-    .info-card {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid #1e293b;
-        border-radius: 12px;
-        padding: 1rem 1.1rem;
-        backdrop-filter: blur(10px);
-        transition: all 0.2s ease;
-    }
-    .info-card:hover {
-        border-color: rgba(6, 182, 212, 0.4);
-        transform: translateY(-2px);
-    }
-    .info-label {
-        font-size: 0.68rem;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 1.2px;
-        margin-bottom: 0.4rem;
-        font-weight: 600;
-    }
-    .info-value {
-        font-size: 1rem;
-        color: #f1f5f9;
-        font-weight: 700;
-    }
-
     /* Result card */
     .result-card {
         background: rgba(15, 23, 42, 0.7);
@@ -359,37 +255,38 @@ st.markdown("""
         color: #475569;
     }
 
-    /* Suggestion list */
-    .suggestion-item {
+    /* Stats */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.85rem;
+        margin-top: 1rem;
+    }
+    .stat-card {
         background: rgba(15, 23, 42, 0.7);
-        border-left: 3px solid #10b981;
-        padding: 1rem 1.3rem;
-        margin: 0.7rem 0;
-        border-radius: 10px;
-        color: #e2e8f0;
-        font-size: 0.98rem;
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 1rem 1.1rem;
         backdrop-filter: blur(10px);
         transition: all 0.2s ease;
-        line-height: 1.6;
+        text-align: center;
     }
-    .suggestion-item:hover {
-        border-left-color: #22d3ee;
-        transform: translateX(4px);
-        background: rgba(15, 23, 42, 0.95);
+    .stat-card:hover {
+        border-color: rgba(6, 182, 212, 0.4);
+        transform: translateY(-2px);
     }
-    .suggestion-num {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-        color: #ffffff;
-        font-weight: 800;
-        font-size: 0.75rem;
-        width: 22px;
-        height: 22px;
-        border-radius: 6px;
-        margin-right: 0.75rem;
-        box-shadow: 0 2px 8px rgba(6, 182, 212, 0.4);
+    .stat-label {
+        font-size: 0.68rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        margin-bottom: 0.4rem;
+        font-weight: 600;
+    }
+    .stat-value {
+        font-size: 1rem;
+        color: #f1f5f9;
+        font-weight: 700;
     }
 
     /* Placeholder */
@@ -406,6 +303,13 @@ st.markdown("""
         font-size: 3rem;
         margin-bottom: 1rem;
         opacity: 0.5;
+    }
+
+    /* Image frame */
+    div[data-testid="stImage"] img {
+        border-radius: 14px;
+        border: 1px solid rgba(6, 182, 212, 0.25);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
     }
 
     /* Text */
@@ -487,152 +391,37 @@ def clean_response(text):
     return cleaned.strip()
 
 # ============================================================
-# SCRAPER + ANALYZER
-# ============================================================
-
-def normalize_url(url):
-    url = url.strip()
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
-    return url
-
-def fetch_page(url):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/120.0.0.0 Safari/537.36"
-    }
-    response = requests.get(url, headers=headers, timeout=15)
-    response.raise_for_status()
-    return response
-
-def analyze_html(html, url):
-    soup = BeautifulSoup(html, "html.parser")
-
-    title_tag = soup.find("title")
-    title = title_tag.get_text(strip=True) if title_tag else ""
-
-    meta_desc = ""
-    meta = soup.find("meta", attrs={"name": "description"})
-    if meta and meta.get("content"):
-        meta_desc = meta["content"]
-
-    h1_count = len(soup.find_all("h1"))
-    h2_count = len(soup.find_all("h2"))
-    h3_count = len(soup.find_all("h3"))
-
-    images = soup.find_all("img")
-    total_images = len(images)
-    images_with_alt = sum(1 for img in images if img.get("alt"))
-
-    links = soup.find_all("a")
-    total_links = len(links)
-    internal_links = sum(
-        1 for a in links
-        if a.get("href", "").startswith(("/", "#")) or urlparse(url).netloc in a.get("href", "")
-    )
-    external_links = total_links - internal_links
-
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
-    body_text = soup.get_text(separator=" ", strip=True)
-    word_count = len(body_text.split())
-
-    html_tag = soup.find("html")
-    lang = html_tag.get("lang", "unknown") if html_tag else "unknown"
-
-    viewport = soup.find("meta", attrs={"name": "viewport"})
-    og_title = soup.find("meta", property="og:title")
-    og_desc = soup.find("meta", property="og:description")
-
-    return {
-        "url": url,
-        "title": title,
-        "title_length": len(title),
-        "meta_description": meta_desc,
-        "meta_desc_length": len(meta_desc),
-        "h1_count": h1_count,
-        "h2_count": h2_count,
-        "h3_count": h3_count,
-        "total_images": total_images,
-        "images_with_alt": images_with_alt,
-        "total_links": total_links,
-        "internal_links": internal_links,
-        "external_links": external_links,
-        "word_count": word_count,
-        "lang": lang,
-        "has_viewport": bool(viewport),
-        "has_og_title": bool(og_title),
-        "has_og_desc": bool(og_desc),
-        "body_preview": body_text[:1500]
-    }
-
-def calculate_scores(data):
-    scores = {}
-
-    seo = 100
-    if not data["title"]: seo -= 25
-    elif data["title_length"] < 30 or data["title_length"] > 60: seo -= 10
-    if not data["meta_description"]: seo -= 25
-    elif data["meta_desc_length"] < 120 or data["meta_desc_length"] > 160: seo -= 10
-    if data["h1_count"] == 0: seo -= 20
-    elif data["h1_count"] > 1: seo -= 10
-    if not data["has_og_title"]: seo -= 5
-    if not data["has_og_desc"]: seo -= 5
-    scores["SEO"] = max(0, min(100, seo))
-
-    content = 100
-    wc = data["word_count"]
-    if wc < 300: content -= 40
-    elif wc < 600: content -= 20
-    if data["h2_count"] < 2: content -= 15
-    if data["h3_count"] < 1: content -= 10
-    scores["Content"] = max(0, min(100, content))
-
-    accessibility = 100
-    if data["total_images"] > 0:
-        alt_ratio = data["images_with_alt"] / data["total_images"]
-        accessibility = int(alt_ratio * 100)
-    if data["lang"] == "unknown": accessibility -= 10
-    scores["Accessibility"] = max(0, min(100, accessibility))
-
-    mobile = 100
-    if not data["has_viewport"]: mobile -= 50
-    scores["Mobile"] = max(0, min(100, mobile))
-
-    links_score = 100
-    if data["total_links"] < 5: links_score -= 20
-    if data["internal_links"] == 0: links_score -= 30
-    if data["external_links"] == 0: links_score -= 20
-    scores["Links"] = max(0, min(100, links_score))
-
-    scores["Overall"] = int(sum(scores.values()) / len(scores))
-    return scores
-
-# ============================================================
 # SIDEBAR
 # ============================================================
 
 with st.sidebar:
-    st.markdown("## 📡 PagePulse")
+    st.markdown("## 🧙 PixelSage")
     st.markdown(
         "<p style='font-size:0.8rem;color:#64748b;margin-top:-0.5rem;'>"
-        "Website Scanner</p>",
+        "Image Analysis Engine</p>",
         unsafe_allow_html=True
     )
     st.markdown("---")
 
-    st.markdown("### 🔎 What It Scans")
+    st.markdown("### ⚙️ Settings")
+    detail_level = st.select_slider(
+        "Detail level",
+        options=["Brief", "Standard", "Detailed"],
+        value="Standard"
+    )
+
+    st.markdown("---")
+    st.markdown("### 🔍 Detects")
     st.markdown(
         """
-        - Title & meta description
-        - Heading structure
-        - Image alt tags
-        - Internal / external links
-        - Word count & depth
-        - Mobile viewport
-        - Open Graph tags
-        - Language attribute
+        - People & actions
+        - Objects & items
+        - Background scenery
+        - Environment & setting
+        - Colors, shapes, materials
+        - Lighting & atmosphere
+        - Positions & layout
+        - Small visible details
         """
     )
 
@@ -648,12 +437,12 @@ with st.sidebar:
 st.markdown(
     """
     <div class="hero">
-        <div class="hero-mark">📡</div>
-        <h1 class="hero-title">PagePulse</h1>
-        <div class="hero-sub">Website Scanner</div>
-        <div class="hero-tagline">Scan it · Analyze it · Improve it</div>
+        <div class="hero-mark">🧙</div>
+        <h1 class="hero-title">PixelSage</h1>
+        <div class="hero-sub">Image Analyzer</div>
+        <div class="hero-tagline">Snap it · See it · Understand it</div>
         <div class="status-pill">
-            <span class="status-dot"></span> Scanner Ready
+            <span class="status-dot"></span> Analyzer Ready
         </div>
     </div>
     """,
@@ -661,272 +450,194 @@ st.markdown(
 )
 
 # ============================================================
-# STEP 1 — URL INPUT
+# STEP 1 — UPLOAD
 # ============================================================
 
 st.markdown(
-    '<div class="section-label">📡 01 · Target URL</div>',
+    '<div class="section-label">📸 01 · Upload Image</div>',
     unsafe_allow_html=True
 )
 
-url_input = st.text_input(
-    "URL",
-    placeholder="https://example.com",
+uploaded_file = st.file_uploader(
+    "Upload image",
+    type=["jpg", "jpeg", "png", "webp"],
     label_visibility="collapsed"
 )
 
-scan_clicked = st.button("📡  Scan Website", use_container_width=True)
-
 # ============================================================
-# STEP 2 — ANALYSIS
+# STEP 2 — PREVIEW
 # ============================================================
 
-if scan_clicked and url_input.strip():
-    url = normalize_url(url_input)
+if uploaded_file:
+    try:
+        image = Image.open(uploaded_file).convert("RGB")
+    except Exception:
+        st.error("Invalid image file.")
+        st.stop()
 
-    # Scanning animation
-    scan_placeholder = st.empty()
-    scan_placeholder.markdown(
-        """
-        <div class="scanning">
-            <div class="scanning-icon">📡</div>
-            <div class="scanning-text">Scanning · Analyzing · Generating</div>
+    st.markdown(
+        '<div class="section-label">🖼️ 02 · Preview</div>',
+        unsafe_allow_html=True
+    )
+
+    st.image(image, use_container_width=True)
+
+    # Image stats
+    w, h = image.size
+    st.markdown(
+        f"""
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-label">Width</div>
+                <div class="stat-value">{w} px</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Height</div>
+                <div class="stat-value">{h} px</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Mode</div>
+                <div class="stat-value">{image.mode}</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    try:
-        response = fetch_page(url)
-        html = response.text
-        data = analyze_html(html, url)
-        scores = calculate_scores(data)
+    st.markdown("")
 
-        # Clear scanning animation
-        scan_placeholder.empty()
+    # Analyze button
+    analyze_clicked = st.button("🔍  Analyze Image", use_container_width=True)
 
-        # --------------------------------------------------
-        # Section 02 · Report
-        # --------------------------------------------------
-        st.markdown(
-            '<div class="section-label">📊 02 · Report</div>',
-            unsafe_allow_html=True
-        )
+    # --------------------------------------------------
+    # STEP 3 — RESULT
+    # --------------------------------------------------
+    st.markdown(
+        '<div class="section-label">📝 03 · Analysis Result</div>',
+        unsafe_allow_html=True
+    )
 
-        # Score card
-        overall = scores["Overall"]
-        if overall >= 85: note = "Excellent · Well optimized"
-        elif overall >= 70: note = "Good · Minor improvements needed"
-        elif overall >= 50: note = "Average · Needs improvement"
-        else: note = "Poor · Significant work needed"
-
-        st.markdown(
-            f"""
-            <div class="score-card">
-                <div class="score-value">{overall}</div>
-                <div class="score-label">Overall Score</div>
-                <div class="score-note">{note}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # --------------------------------------------------
-        # Score breakdown
-        # --------------------------------------------------
-        st.markdown(
-            '<div class="section-label">📈 Score Breakdown</div>',
-            unsafe_allow_html=True
-        )
-
-        metrics_html = ""
-        for name in ["SEO", "Content", "Accessibility", "Mobile", "Links"]:
-            val = scores[name]
-            metrics_html += f"""
-            <div class="metric-row">
-                <div class="metric-header">
-                    <span class="metric-name">{name}</span>
-                    <span class="metric-value">{val}/100</span>
-                </div>
-                <div class="metric-bar">
-                    <div class="metric-fill" style="width:{val}%;"></div>
-                </div>
-            </div>
+    if analyze_clicked:
+        # Scanning animation
+        scan_placeholder = st.empty()
+        scan_placeholder.markdown(
             """
-        st.markdown(metrics_html, unsafe_allow_html=True)
-
-        # --------------------------------------------------
-        # Page info
-        # --------------------------------------------------
-        st.markdown(
-            '<div class="section-label">🔍 Page Details</div>',
-            unsafe_allow_html=True
-        )
-
-        st.markdown(
-            f"""
-            <div class="info-grid">
-                <div class="info-card">
-                    <div class="info-label">Title Length</div>
-                    <div class="info-value">{data['title_length']} chars</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">Meta Desc</div>
-                    <div class="info-value">{data['meta_desc_length']} chars</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">Word Count</div>
-                    <div class="info-value">{data['word_count']:,}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">Images</div>
-                    <div class="info-value">{data['total_images']}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">Links</div>
-                    <div class="info-value">{data['total_links']}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">Language</div>
-                    <div class="info-value">{data['lang']}</div>
-                </div>
+            <div class="scanning">
+                <div class="scanning-icon">📡</div>
+                <div class="scanning-text">Scanning · Analyzing · Generating</div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        # --------------------------------------------------
-        # AI Analysis
-        # --------------------------------------------------
-        st.markdown(
-            '<div class="section-label">🤖 AI Analysis</div>',
-            unsafe_allow_html=True
-        )
+        try:
+            # Preprocess
+            img_copy = image.copy()
+            img_copy.thumbnail((1024, 1024))
+            buffered = io.BytesIO()
+            img_copy.save(buffered, format="JPEG", quality=88)
+            img_bytes = buffered.getvalue()
+            base64_image = base64.b64encode(img_bytes).decode("utf-8")
 
-        with st.spinner("Generating AI insights..."):
-            analysis_prompt = f"""You are an expert web analyst. Analyze the following page and give a professional report.
+            # Detail level mapping
+            detail_map = {
+                "Brief": "60 to 80 words",
+                "Standard": "100 to 150 words",
+                "Detailed": "180 to 250 words"
+            }
+            target_len = detail_map.get(detail_level, "100 to 150 words")
 
-PAGE DATA:
-- URL: {data['url']}
-- Title: "{data['title']}" ({data['title_length']} chars)
-- Meta description: "{data['meta_description']}" ({data['meta_desc_length']} chars)
-- H1 count: {data['h1_count']}
-- H2 count: {data['h2_count']}
-- H3 count: {data['h3_count']}
-- Images: {data['total_images']} (with alt: {data['images_with_alt']})
-- Total links: {data['total_links']} (internal: {data['internal_links']}, external: {data['external_links']})
-- Word count: {data['word_count']}
-- Language: {data['lang']}
-- Viewport meta: {data['has_viewport']}
-- Open Graph title: {data['has_og_title']}
-- Open Graph description: {data['has_og_desc']}
-- Content preview: "{data['body_preview']}"
+            # Prompt
+            prompt = f"""Analyze the ENTIRE image carefully and describe what you see in ONE coherent paragraph of {target_len}.
 
-Write a report in EXACTLY this format (no extra sections):
-
-SUMMARY:
-<2-3 sentences describing the page and its overall quality.>
-
-TOP 5 IMPROVEMENTS:
-1. <specific, actionable improvement>
-2. <specific, actionable improvement>
-3. <specific, actionable improvement>
-4. <specific, actionable improvement>
-5. <specific, actionable improvement>
+Cover in this order:
+1. Foreground objects (closest to viewer)
+2. Middle ground objects
+3. Background scenery
+4. Edges and corners (any small details)
+5. People and what they are doing (or say no people are visible)
+6. Environment and setting
+7. Colors, shapes, materials, lighting
+8. Positions (left, right, center, etc.)
 
 RULES:
-- Do NOT show reasoning or thinking.
-- Do NOT use phrases like "Let me", "Okay", "Wait".
-- Only output the SUMMARY and TOP 5 IMPROVEMENTS sections.
-- Be specific and practical."""
+- Describe only things actually visible.
+- Do not guess or invent.
+- Do not repeat information.
+- Do not number your observations.
+- Do NOT show reasoning, thinking, or step-by-step analysis.
+- Do NOT use phrases like "Let me think", "Wait", "Looking closely".
+- Write ONE natural paragraph, flowing smoothly from foreground to background.
+- Respond ONLY with the final description."""
 
-            response_ai = client.chat.completions.create(
+            response = client.chat.completions.create(
                 model=MODEL_NAME,
-                messages=[{"role": "user", "content": analysis_prompt}],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
                 max_tokens=900,
                 temperature=0.3
             )
 
-            ai_text = response_ai.choices[0].message.content
-            ai_text = clean_response(ai_text)
+            answer = response.choices[0].message.content
+            answer = clean_response(answer)
 
-            summary_match = re.search(
-                r"SUMMARY:\s*(.+?)(?=TOP 5 IMPROVEMENTS:|$)",
-                ai_text, re.DOTALL | re.IGNORECASE
-            )
-            improvements_match = re.search(
-                r"TOP 5 IMPROVEMENTS:\s*(.+?)$",
-                ai_text, re.DOTALL | re.IGNORECASE
-            )
+            # Clear scanning
+            scan_placeholder.empty()
 
-            summary = summary_match.group(1).strip() if summary_match else ai_text
-            improvements_raw = improvements_match.group(1).strip() if improvements_match else ""
-
-            # Summary card
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            st.markdown(
-                f"""
-                <div class="result-card">
-                    <div class="result-header">
-                        <div class="result-header-title">📝 Summary</div>
-                        <div class="result-meta">{timestamp}</div>
-                    </div>
-                    {summary}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            # Improvements
-            if improvements_raw:
+            if not answer:
+                st.warning("No description returned.")
+            else:
+                timestamp = datetime.now().strftime("%H:%M:%S")
                 st.markdown(
-                    '<div class="section-label">💡 Top 5 Improvements</div>',
+                    f"""
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div class="result-header-title">🧙 PixelSage Says</div>
+                            <div class="result-meta">{target_len} · {timestamp}</div>
+                        </div>
+                        {answer}
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
 
-                improvements = re.split(r"\n(?=\d+\.)", improvements_raw)
-                for item in improvements:
-                    item = item.strip()
-                    if not item:
-                        continue
-                    match = re.match(r"(\d+)\.\s*(.+)", item, re.DOTALL)
-                    if match:
-                        num, text = match.groups()
-                        text = re.sub(r"\s+", " ", text).strip()
-                        st.markdown(
-                            f'<div class="suggestion-item">'
-                            f'<span class="suggestion-num">{num}</span>{text}'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
+                with st.expander("📋 Copy as plain text"):
+                    st.code(answer, language=None)
 
-            # Copy option
-            with st.expander("📋 View full report as plain text"):
-                st.code(ai_text, language=None)
+        except Exception as e:
+            scan_placeholder.empty()
+            st.error("⚠️ Analysis failed.")
+            st.code(str(e))
 
-    except requests.exceptions.Timeout:
-        scan_placeholder.empty()
-        st.error("⏱️ Request timed out. The site took too long to respond.")
-    except requests.exceptions.ConnectionError:
-        scan_placeholder.empty()
-        st.error("🌐 Could not connect. Check the URL.")
-    except requests.exceptions.HTTPError as e:
-        scan_placeholder.empty()
-        st.error(f"❌ HTTP error: {e.response.status_code}")
-    except Exception as e:
-        scan_placeholder.empty()
-        st.error("⚠️ Analysis failed.")
-        st.code(str(e))
-
-elif scan_clicked and not url_input.strip():
-    st.warning("Please enter a URL first.")
+    else:
+        st.markdown(
+            """
+            <div class="placeholder-card">
+                <div class="placeholder-icon">🔍</div>
+                <div>Click <b>Analyze Image</b> to generate a description</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 else:
     st.markdown(
         """
         <div class="placeholder-card">
-            <div class="placeholder-icon">📡</div>
-            <div>Paste a URL above and click <b>Scan Website</b> to start</div>
+            <div class="placeholder-icon">📤</div>
+            <div>Upload an image to begin analysis</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -939,7 +650,7 @@ else:
 st.markdown("---")
 st.markdown(
     "<p style='text-align:center;color:#475569;font-size:0.8rem;letter-spacing:1px;'>"
-    "📡 PagePulse · Scan it · Analyze it · Improve it"
+    "🧙 PixelSage · Snap it · See it · Understand it"
     "</p>",
     unsafe_allow_html=True
 )
