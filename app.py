@@ -11,8 +11,8 @@ import re
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Image Analyzer",
-    page_icon="🖼️",
+    page_title="PixelSage",
+    page_icon="🧙",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -35,7 +35,7 @@ st.markdown("""
         font-size: 3rem; font-weight: 800; text-align: center;
         padding: 1rem 0 0.5rem 0; margin-bottom: 0;
     }
-    .subtitle { text-align: center; color: #a0a0b0; font-size: 1rem; margin-bottom: 2rem; }
+    .subtitle { text-align: center; color: #a0a0b0; font-size: 1.1rem; margin-bottom: 2rem; }
 
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
@@ -91,7 +91,6 @@ if not GROQ_API_KEY:
 # MODEL
 # ============================================================
 
-# Groq's current vision model (supports images)
 MODEL_NAME = "qwen/qwen3.6-27b"
 
 # ============================================================
@@ -105,14 +104,44 @@ def get_client():
 client = get_client()
 
 # ============================================================
-# CLEAN RESPONSE (removes thinking blocks)
+# CLEAN RESPONSE
 # ============================================================
+
+META_STARTERS = [
+    "Identify the", "Determine the", "Analyze the",
+    "Let me ", "Okay, ", "Hmm, ", "Wait, ",
+    "I need to ", "The user is asking", "The user wants",
+    "Draft Response:", "Final decision:",
+    "Let's ", "Actually, ", "Correction:",
+    "Alternative:", "Refine:", "Check constraints",
+    "Final Output", "Top image:", "Second image",
+    "Third image", "Bottom image", "Looking closely",
+    "Wait, no", "Let's re-evaluate",
+]
 
 def clean_response(text):
     if not text:
         return ""
+
+    # Remove  thinking... blocks
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
     cleaned = re.sub(r"</?think>", "", cleaned)
+
+    # Remove meta reasoning lines
+    lines = cleaned.split("\n")
+    filtered = []
+    for line in lines:
+        stripped = line.strip()
+        if any(stripped.startswith(m) for m in META_STARTERS):
+            continue
+        filtered.append(line)
+    cleaned = "\n".join(filtered)
+
+    # Fallback: if everything was stripped, use last paragraph
+    if not cleaned.strip() and text:
+        parts = text.strip().split("\n\n")
+        cleaned = parts[-1] if parts else ""
+
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
 
@@ -120,9 +149,9 @@ def clean_response(text):
 # HEADER
 # ============================================================
 
-st.markdown('<h1 class="main-title">🖼️ AI Image Analyzer</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-title">🧙 PixelSage</h1>', unsafe_allow_html=True)
 st.markdown(
-    '<p class="subtitle">Upload an image and AI will describe the entire visible scene</p>',
+    '<p class="subtitle">Snap it. See it. Understand it.</p>',
     unsafe_allow_html=True
 )
 
@@ -131,10 +160,10 @@ st.markdown(
 # ============================================================
 
 with st.sidebar:
-    st.markdown("## ℹ️ About")
+    st.markdown("## ℹ️ About PixelSage")
     st.markdown(
-        "AI Image Analyzer uses a vision model to understand "
-        "and describe uploaded images in natural language."
+        "PixelSage uses a powerful vision-language model to "
+        "understand and describe uploaded images in natural language."
     )
 
     st.markdown("### 🔍 What it detects")
@@ -175,7 +204,6 @@ if uploaded_file:
         st.error("The uploaded file is not a valid image.")
         st.stop()
 
-    # Layout: image left, analysis right
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -189,7 +217,7 @@ if uploaded_file:
         )
 
         if st.button("🔍 Analyze Image", use_container_width=True):
-            with st.spinner("AI is analyzing the image..."):
+            with st.spinner("PixelSage is analyzing the image..."):
                 try:
                     # Resize for API (max 1024px)
                     image.thumbnail((1024, 1024))
@@ -219,8 +247,10 @@ RULES:
 - Do not repeat information.
 - Do not copy these instructions.
 - Do not number your observations.
+- Do NOT show reasoning, thinking, or step-by-step analysis.
+- Do NOT use phrases like "Let me think", "Wait", "Looking closely".
 - Write ONE natural paragraph.
-- Respond ONLY with the description, no thinking or reasoning."""
+- Respond ONLY with the final description."""
 
                     # Groq API call with vision
                     response = client.chat.completions.create(
@@ -255,7 +285,7 @@ RULES:
                         )
 
                 except Exception as e:
-                    st.error("⚠️ The AI could not analyze the image.")
+                    st.error("⚠️ PixelSage could not analyze the image.")
                     st.code(str(e))
 
 # ============================================================
@@ -265,7 +295,7 @@ RULES:
 st.markdown("---")
 st.markdown(
     '<p style="text-align:center; color:#667eea; font-size:0.85rem;">'
-    '🖼️ AI Image Analyzer'
+    '🧙 PixelSage · Snap it. See it. Understand it.'
     '</p>',
     unsafe_allow_html=True
 )
