@@ -13,21 +13,18 @@ from datetime import datetime
 
 st.set_page_config(
     page_title="PixelSage",
-    page_icon="🧙",
+    page_icon="📸",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ============================================================
-# CSS — Real app look (Linear/Notion/Arc inspired)
+# CSS — Real app look
 # ============================================================
 
 st.markdown("""
 <style>
-    /* ---------- Global ---------- */
-    .stApp {
-        background: #08090c;
-    }
+    .stApp { background: #08090c; }
     #MainMenu, footer {visibility: hidden;}
     header[data-testid="stHeader"] {background: transparent; height: 0;}
     .block-container {
@@ -36,7 +33,7 @@ st.markdown("""
         max-width: 960px;
     }
 
-    /* ---------- Top navigation bar ---------- */
+    /* Top nav */
     .app-nav {
         display: flex;
         align-items: center;
@@ -48,20 +45,18 @@ st.markdown("""
         backdrop-filter: blur(20px);
         margin-bottom: 2.5rem;
     }
-    .nav-left {
-        display: flex;
-        align-items: center;
-        gap: 0.85rem;
-    }
+    .nav-left { display: flex; align-items: center; gap: 0.85rem; }
     .nav-logo {
-        width: 36px;
-        height: 36px;
+        width: 36px; height: 36px;
         border-radius: 10px;
         background: linear-gradient(135deg, #06b6d4 0%, #10b981 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.1rem;
+        font-size: 1rem;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: -0.5px;
         box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
     }
     .nav-brand {
@@ -76,11 +71,6 @@ st.markdown("""
         color: #64748b;
         letter-spacing: 0.5px;
         margin-top: 1px;
-    }
-    .nav-right {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
     }
     .nav-pill {
         display: inline-flex;
@@ -106,11 +96,8 @@ st.markdown("""
         50% { opacity: 0.3; }
     }
 
-    /* ---------- Hero block ---------- */
-    .page-hero {
-        text-align: center;
-        margin-bottom: 2.5rem;
-    }
+    /* Hero */
+    .page-hero { text-align: center; margin-bottom: 2.5rem; }
     .page-title {
         font-size: 2.6rem;
         font-weight: 800;
@@ -131,7 +118,7 @@ st.markdown("""
         margin: 0;
     }
 
-    /* ---------- Tabs ---------- */
+    /* Tabs */
     .tabs-row {
         display: flex;
         gap: 0.4rem;
@@ -158,7 +145,7 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
 
-    /* ---------- Big drop zone ---------- */
+    /* Drop zone */
     div[data-testid="stFileUploader"] {
         background: transparent !important;
         border: none !important;
@@ -171,7 +158,7 @@ st.markdown("""
         border-radius: 20px !important;
         padding: 3.5rem 2rem !important;
         transition: all 0.25s ease !important;
-        min-height: 320px !important;
+        min-height: 300px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -191,14 +178,8 @@ st.markdown("""
         color: #06b6d4;
         margin-bottom: 1rem;
     }
-    div[data-testid="stFileUploader"] section small {
-        color: #64748b;
-        font-size: 0.85rem;
-    }
-    div[data-testid="stFileUploader"] section span {
-        color: #e2e8f0;
-        font-weight: 600;
-    }
+    div[data-testid="stFileUploader"] section small { color: #64748b; font-size: 0.85rem; }
+    div[data-testid="stFileUploader"] section span { color: #e2e8f0; font-weight: 600; }
     div[data-testid="stFileUploader"] button {
         background: #1c1f26 !important;
         color: #e2e8f0 !important;
@@ -214,7 +195,7 @@ st.markdown("""
         color: #22d3ee !important;
     }
 
-    /* ---------- Buttons ---------- */
+    /* Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
         color: #ffffff;
@@ -234,14 +215,14 @@ st.markdown("""
         box-shadow: 0 8px 30px rgba(6, 182, 212, 0.55);
     }
 
-    /* ---------- Image preview frame ---------- */
+    /* Image preview */
     div[data-testid="stImage"] img {
         border-radius: 16px;
         border: 1px solid #1c1f26;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
 
-    /* ---------- Result card ---------- */
+    /* Result block */
     .result-block {
         background: linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(16,185,129,0.03) 100%);
         border: 1px solid #1c1f26;
@@ -283,10 +264,7 @@ st.markdown("""
         border-radius: 50%;
         box-shadow: 0 0 10px #10b981;
     }
-    .result-time {
-        font-size: 0.72rem;
-        color: #475569;
-    }
+    .result-time { font-size: 0.72rem; color: #475569; }
     .result-text {
         color: #e2e8f0;
         font-size: 1.05rem;
@@ -294,7 +272,7 @@ st.markdown("""
         letter-spacing: 0.1px;
     }
 
-    /* ---------- Stat chips ---------- */
+    /* Chips */
     .chips-row {
         display: flex;
         gap: 0.5rem;
@@ -315,7 +293,7 @@ st.markdown("""
     }
     .chip strong {color: #e2e8f0; font-weight: 600;}
 
-    /* ---------- Empty state ---------- */
+    /* Empty */
     .empty-state {
         text-align: center;
         padding: 4rem 2rem;
@@ -323,23 +301,11 @@ st.markdown("""
         border: 1px dashed #1c1f26;
         border-radius: 20px;
     }
-    .empty-icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        opacity: 0.4;
-    }
-    .empty-title {
-        font-size: 1.1rem;
-        color: #94a3b8;
-        font-weight: 600;
-        margin-bottom: 0.3rem;
-    }
-    .empty-sub {
-        font-size: 0.85rem;
-        color: #475569;
-    }
+    .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+    .empty-title { font-size: 1.1rem; color: #94a3b8; font-weight: 600; margin-bottom: 0.3rem; }
+    .empty-sub { font-size: 0.85rem; color: #475569; }
 
-    /* ---------- Scanning ---------- */
+    /* Scanning */
     .scanning-block {
         padding: 2.5rem;
         background: rgba(6, 182, 212, 0.04);
@@ -362,13 +328,13 @@ st.markdown("""
         100% { left: 100%; }
     }
     .scanning-block .icon {
-        font-size: 2.8rem;
-        animation: spin 2.5s linear infinite;
+        font-size: 2.5rem;
+        animation: pulse 1.8s ease-in-out infinite;
         display: inline-block;
     }
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.15); opacity: 0.7; }
     }
     .scanning-block .label {
         color: #22d3ee;
@@ -379,24 +345,23 @@ st.markdown("""
         margin-top: 1rem;
     }
 
-    /* ---------- Text ---------- */
+    /* Text */
     p, span, div, label { color: #cbd5e1; }
     .stCaption, small { color: #64748b !important; }
 
-    /* ---------- Spinner ---------- */
+    /* Spinner */
     .stSpinner > div { border-top-color: #06b6d4 !important; }
 
-    /* ---------- Alerts ---------- */
+    /* Alerts */
     .stAlert {
         border-radius: 12px;
         background: rgba(15, 17, 21, 0.8);
         border: 1px solid #1c1f26;
     }
 
-    /* ---------- Divider ---------- */
     hr { border-color: #1c1f26; margin: 2rem 0; }
 
-    /* ---------- Footer ---------- */
+    /* Footer */
     .app-footer {
         text-align: center;
         padding: 2.5rem 0 1rem 0;
@@ -438,54 +403,30 @@ client = get_client()
 # CLEAN RESPONSE
 # ============================================================
 
-META_STARTERS = [
-    "Identify the", "Determine the", "Analyze the",
-    "Let me ", "Okay, ", "Hmm, ", "Wait, ",
-    "I need to ", "The user is asking", "The user wants",
-    "Draft Response:", "Final decision:",
-    "Let's ", "Actually, ", "Correction:",
-    "Alternative:", "Refine:", "Check constraints",
-    "Final Output", "Looking closely",
-    "Wait, no", "Let's re-evaluate",
-]
-
 def clean_response(text):
     if not text:
         return ""
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
     cleaned = re.sub(r"</?think>", "", cleaned)
-    lines = cleaned.split("\n")
-    filtered = []
-    for line in lines:
-        stripped = line.strip()
-        if any(stripped.startswith(m) for m in META_STARTERS):
-            continue
-        filtered.append(line)
-    cleaned = "\n".join(filtered)
-    if not cleaned.strip() and text:
-        parts = text.strip().split("\n\n")
-        cleaned = parts[-1] if parts else ""
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
 
 # ============================================================
-# APP NAV BAR
+# APP NAV
 # ============================================================
 
 st.markdown(
     """
     <div class="app-nav">
         <div class="nav-left">
-            <div class="nav-logo">🧙</div>
+            <div class="nav-logo">PS</div>
             <div>
                 <div class="nav-brand">PixelSage</div>
                 <div class="nav-sub">IMAGE ANALYSIS STUDIO</div>
             </div>
         </div>
-        <div class="nav-right">
-            <div class="nav-pill">
-                <span class="nav-pill-dot"></span> Engine Ready
-            </div>
+        <div class="nav-pill">
+            <span class="nav-pill-dot"></span> Engine Ready
         </div>
     </div>
     """,
@@ -522,7 +463,7 @@ st.markdown(
 )
 
 # ============================================================
-# SETTINGS (inline, compact)
+# DETAIL LEVEL
 # ============================================================
 
 detail_level = st.radio(
@@ -536,7 +477,7 @@ detail_level = st.radio(
 st.markdown("")
 
 # ============================================================
-# UPLOAD / PREVIEW / RESULT — Vertical flow
+# UPLOAD / PREVIEW / RESULT
 # ============================================================
 
 uploaded_file = st.file_uploader(
@@ -552,11 +493,9 @@ if uploaded_file:
         st.error("Invalid image file.")
         st.stop()
 
-    # ---------- Preview ----------
     st.markdown("")
     st.image(image, use_container_width=True)
 
-    # Stats chips
     w, h = image.size
     file_size = len(uploaded_file.getvalue()) / 1024
     st.markdown(
@@ -573,17 +512,14 @@ if uploaded_file:
 
     st.markdown("")
 
-    # ---------- Analyze button ----------
     analyze_clicked = st.button("🔍  Analyze Image", use_container_width=True)
 
-    # ---------- Result ----------
     if analyze_clicked:
-        # Scanning animation
         scan_placeholder = st.empty()
         scan_placeholder.markdown(
             """
             <div class="scanning-block">
-                <div class="icon">🧙</div>
+                <div class="icon">📸</div>
                 <div class="label">Analyzing image</div>
             </div>
             """,
@@ -591,7 +527,6 @@ if uploaded_file:
         )
 
         try:
-            # Preprocess
             img_copy = image.copy()
             img_copy.thumbnail((1024, 1024))
             buffered = io.BytesIO()
@@ -606,35 +541,33 @@ if uploaded_file:
             }
             target_len = detail_map.get(detail_level, "100 to 150 words")
 
-            prompt = f"""Analyze the ENTIRE image carefully and describe what you see in ONE coherent paragraph of {target_len}.
+            # System prompt: forces natural, remembering-style output
+            system_prompt = """You are a professional image analyst. Write your descriptions as a single, natural, flowing paragraph — exactly like a human expert looking at a photo would describe it out loud.
 
-Cover in this order:
-1. Foreground objects (closest to viewer)
-2. Middle ground objects
-3. Background scenery
-4. Edges and corners (any small details)
-5. People and what they are doing (or say no people are visible)
-6. Environment and setting
-7. Colors, shapes, materials, lighting
-8. Positions (left, right, center, etc.)
+CRITICAL STYLE RULES:
+- Write as ONE continuous paragraph, no bullet points, no numbered lists.
+- Do NOT show any reasoning, thinking, or meta-commentary.
+- Do NOT use phrases like "Let me", "Okay", "First, I'll look at...", "Wait".
+- Do NOT reference instructions, prompts, or the user.
+- Just describe what is visible, in order from foreground to background.
+- Remember the ENTIRE image — including edges and corners — and weave small details in naturally.
+- Sound confident and clear, like a professional analyst."""
 
-RULES:
-- Describe only things actually visible.
-- Do not guess or invent.
-- Do not repeat information.
-- Do not number your observations.
-- Do NOT show reasoning, thinking, or step-by-step analysis.
-- Do NOT use phrases like "Let me think", "Wait", "Looking closely".
-- Write ONE natural paragraph, flowing smoothly from foreground to background.
-- Respond ONLY with the final description."""
+            user_prompt = f"""Describe this image in {target_len}.
+
+Flow your description naturally in this order:
+foreground → middle ground → background → edges and corners → people (or note their absence) → environment → colors, shapes, materials, lighting → positions.
+
+Write as ONE smooth paragraph. Just the final description, nothing else."""
 
             response = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
+                    {"role": "system", "content": system_prompt},
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": prompt},
+                            {"type": "text", "text": user_prompt},
                             {
                                 "type": "image_url",
                                 "image_url": {
@@ -645,7 +578,7 @@ RULES:
                     }
                 ],
                 max_tokens=900,
-                temperature=0.3
+                temperature=0.4
             )
 
             answer = response.choices[0].message.content
@@ -681,7 +614,6 @@ RULES:
             st.code(str(e))
 
 else:
-    # Empty state (only shown if no image)
     st.markdown(
         """
         <div class="empty-state">
@@ -698,6 +630,6 @@ else:
 # ============================================================
 
 st.markdown(
-    '<div class="app-footer">🧙 <strong>PixelSage</strong> · Snap it · See it · Understand it</div>',
+    '<div class="app-footer"><strong>PixelSage</strong> · Snap it · See it · Understand it</div>',
     unsafe_allow_html=True
 )
