@@ -21,7 +21,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# PIXELSAGE LOGO (inline SVG)
+# LOGO
 # ============================================================
 
 LOGO_SVG = """
@@ -44,12 +44,23 @@ LOGO_SVG = """
 LOGO_DATA_URI = "data:image/svg+xml;base64," + base64.b64encode(LOGO_SVG.encode("utf-8")).decode("utf-8")
 
 # ============================================================
-# HISTORY STORAGE
+# STORAGE PATHS
 # ============================================================
 
 HISTORY_FILE = Path("history.json")
 THUMBNAIL_DIR = Path("thumbnails")
 THUMBNAIL_DIR.mkdir(exist_ok=True)
+SETTINGS_FILE = Path("settings.json")
+
+DEFAULT_SETTINGS = {
+    "detail_level": "Standard",
+    "temperature": 0.4,
+    "max_tokens": 900,
+}
+
+# ============================================================
+# FILE HELPERS
+# ============================================================
 
 def load_history():
     if not HISTORY_FILE.exists():
@@ -68,7 +79,6 @@ def save_history(history):
         st.error(f"Could not save history: {e}")
 
 def save_thumbnail(image, entry_id):
-    """Save a thumbnail and return its path."""
     try:
         thumb = image.copy()
         thumb.thumbnail((300, 300))
@@ -89,11 +99,10 @@ def add_history_entry(image, description, detail_level, model_name):
         "model": model_name,
         "thumbnail": thumb_path,
         "width": image.width,
-        "height": image.height
+        "height": image.height,
     }
     history = load_history()
-    history.insert(0, entry)  # newest first
-    # Keep only last 30
+    history.insert(0, entry)
     history = history[:30]
     save_history(history)
     return entry
@@ -102,7 +111,6 @@ def delete_history_entry(entry_id):
     history = load_history()
     history = [h for h in history if h["id"] != entry_id]
     save_history(history)
-    # Delete thumbnail
     thumb_path = THUMBNAIL_DIR / f"{entry_id}.jpg"
     if thumb_path.exists():
         try:
@@ -121,38 +129,43 @@ def clear_history():
                 pass
     save_history([])
 
-# ============================================================
-# SETTINGS STORAGE
-# ============================================================
-
-SETTINGS_FILE = Path("settings.json")
-
-DEFAULT_SETTINGS = {
-    "detail_level": "Standard",
-    "temperature": 0.4,
-    "max_tokens": 900,
-    "theme": "dark"
-}
-
 def load_settings():
     if not SETTINGS_FILE.exists():
         return DEFAULT_SETTINGS.copy()
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        # Merge with defaults
         merged = DEFAULT_SETTINGS.copy()
         merged.update(data)
         return merged
     except Exception:
         return DEFAULT_SETTINGS.copy()
 
-def save_settings(settings):
+def save_settings_file(settings):
     try:
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
     except Exception as e:
         st.error(f"Could not save settings: {e}")
+
+# ============================================================
+# SESSION STATE INITIALIZATION
+# ============================================================
+
+if "settings" not in st.session_state:
+    st.session_state.settings = load_settings()
+
+# Initialize temp settings widgets with current values
+if "temp_detail" not in st.session_state:
+    st.session_state.temp_detail = st.session_state.settings["detail_level"]
+if "temp_temp" not in st.session_state:
+    st.session_state.temp_temp = st.session_state.settings["temperature"]
+if "temp_tokens" not in st.session_state:
+    st.session_state.temp_tokens = st.session_state.settings["max_tokens"]
+if "settings_saved_msg" not in st.session_state:
+    st.session_state.settings_saved_msg = False
+if "settings_reset_msg" not in st.session_state:
+    st.session_state.settings_reset_msg = False
 
 # ============================================================
 # CSS
@@ -163,116 +176,60 @@ st.markdown("""
     .stApp { background: #08090c; }
     #MainMenu, footer {visibility: hidden;}
     header[data-testid="stHeader"] {background: transparent; height: 0;}
-    .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 2rem;
-        max-width: 900px;
-    }
+    .block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 900px; }
 
-    /* Top nav */
     .app-nav {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        display: flex; align-items: center; justify-content: space-between;
         padding: 0.85rem 1.3rem;
         background: rgba(15, 17, 21, 0.9);
-        border: 1px solid #1c1f26;
-        border-radius: 14px;
-        backdrop-filter: blur(20px);
-        margin-bottom: 2rem;
+        border: 1px solid #1c1f26; border-radius: 14px;
+        backdrop-filter: blur(20px); margin-bottom: 2rem;
     }
     .nav-left { display: flex; align-items: center; gap: 0.75rem; }
-    .nav-logo {
-        width: 36px; height: 36px;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
-    }
+    .nav-logo { width: 36px; height: 36px; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35); }
     .nav-logo img { width: 36px; height: 36px; display: block; }
-    .nav-brand {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #f1f5f9;
-        letter-spacing: -0.3px;
-        line-height: 1.1;
-    }
-    .nav-sub {
-        font-size: 0.66rem;
-        color: #64748b;
-        letter-spacing: 0.6px;
-        margin-top: 1px;
-    }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; line-height: 1.1; }
+    .nav-sub { font-size: 0.66rem; color: #64748b; letter-spacing: 0.6px; margin-top: 1px; }
     .nav-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
+        display: inline-flex; align-items: center; gap: 0.4rem;
         padding: 0.32rem 0.7rem;
         background: rgba(6, 182, 212, 0.08);
         border: 1px solid rgba(6, 182, 212, 0.3);
-        border-radius: 999px;
-        font-size: 0.7rem;
-        color: #67e8f9;
-        font-weight: 600;
+        border-radius: 999px; font-size: 0.7rem; color: #67e8f9; font-weight: 600;
     }
     .nav-pill-dot {
-        width: 6px; height: 6px;
-        background: #22d3ee;
-        border-radius: 50%;
-        box-shadow: 0 0 8px #22d3ee;
-        animation: blink 1.6s ease-in-out infinite;
+        width: 6px; height: 6px; background: #22d3ee; border-radius: 50%;
+        box-shadow: 0 0 8px #22d3ee; animation: blink 1.6s ease-in-out infinite;
     }
-    @keyframes blink {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.3; }
-    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-    /* Hero */
     .page-hero { text-align: center; margin-bottom: 1.8rem; }
     .hero-logo {
-        width: 68px;
-        height: 68px;
-        border-radius: 18px;
+        width: 68px; height: 68px; border-radius: 18px;
         margin: 0 auto 1rem auto;
         box-shadow: 0 10px 40px rgba(6, 182, 212, 0.35);
         animation: logoFloat 4s ease-in-out infinite;
         overflow: hidden;
     }
     .hero-logo img { width: 68px; height: 68px; display: block; }
-    @keyframes logoFloat {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
-    }
+    @keyframes logoFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     .page-title {
-        font-size: 2.4rem;
-        font-weight: 800;
-        color: #f8fafc;
-        letter-spacing: -1.2px;
-        line-height: 1.05;
-        margin: 0 0 0.6rem 0;
+        font-size: 2.4rem; font-weight: 800; color: #f8fafc;
+        letter-spacing: -1.2px; line-height: 1.05; margin: 0 0 0.6rem 0;
     }
     .page-title span {
         background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .page-sub {
-        font-size: 0.95rem;
-        color: #94a3b8;
-        margin: 0;
-    }
+    .page-sub { font-size: 0.95rem; color: #94a3b8; margin: 0; }
 
-    /* Streamlit tabs (native) — restyle */
     button[data-baseweb="tab"] {
-        background: transparent !important;
-        color: #64748b !important;
-        font-weight: 600 !important;
-        font-size: 0.85rem !important;
-        padding: 0.6rem 1.1rem !important;
-        border-radius: 8px !important;
+        background: transparent !important; color: #64748b !important;
+        font-weight: 600 !important; font-size: 0.85rem !important;
+        padding: 0.6rem 1.1rem !important; border-radius: 8px !important;
     }
     button[data-baseweb="tab"][aria-selected="true"] {
-        color: #f1f5f9 !important;
-        background: rgba(28, 31, 38, 0.9) !important;
+        color: #f1f5f9 !important; background: rgba(28, 31, 38, 0.9) !important;
     }
     div[data-baseweb="tab-list"] {
         background: rgba(15, 17, 21, 0.6) !important;
@@ -285,357 +242,189 @@ st.markdown("""
     div[data-baseweb="tab-highlight"] { display: none !important; }
     div[data-baseweb="tab-border"] { display: none !important; }
 
-    /* Detail level segmented control */
     div[role="radiogroup"] {
-        display: flex;
-        justify-content: center;
-        gap: 0.35rem;
+        display: flex; justify-content: center; gap: 0.35rem;
         background: rgba(15, 17, 21, 0.6);
-        border: 1px solid #1c1f26;
-        border-radius: 12px;
-        padding: 0.3rem;
-        width: fit-content;
-        margin: 0 auto 1.5rem auto;
+        border: 1px solid #1c1f26; border-radius: 12px;
+        padding: 0.3rem; width: fit-content; margin: 0 auto 1.5rem auto;
     }
     div[role="radiogroup"] label {
-        padding: 0.5rem 1.2rem !important;
-        border-radius: 8px !important;
-        font-size: 0.82rem !important;
-        font-weight: 600 !important;
-        color: #64748b !important;
-        cursor: pointer;
-        transition: all 0.2s ease;
+        padding: 0.5rem 1.2rem !important; border-radius: 8px !important;
+        font-size: 0.82rem !important; font-weight: 600 !important;
+        color: #64748b !important; cursor: pointer; transition: all 0.2s ease;
     }
     div[role="radiogroup"] label:hover { color: #94a3b8 !important; }
     div[role="radiogroup"] label:has(input:checked) {
-        background: #1c1f26 !important;
-        color: #f1f5f9 !important;
+        background: #1c1f26 !important; color: #f1f5f9 !important;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     div[role="radiogroup"] input {display: none;}
 
-    /* Drop zone */
-    div[data-testid="stFileUploader"] {
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-    }
+    div[data-testid="stFileUploader"] { background: transparent !important; border: none !important; padding: 0 !important; }
     div[data-testid="stFileUploader"] > label {display: none !important;}
     div[data-testid="stFileUploader"] section {
-        background: #0f1115 !important;
-        border: 2px dashed #2a2f3a !important;
-        border-radius: 20px !important;
-        padding: 3.5rem 2rem !important;
-        transition: all 0.25s ease !important;
-        min-height: 300px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        background: #0f1115 !important; border: 2px dashed #2a2f3a !important;
+        border-radius: 20px !important; padding: 3.5rem 2rem !important;
+        transition: all 0.25s ease !important; min-height: 300px !important;
+        display: flex !important; align-items: center !important; justify-content: center !important;
     }
     div[data-testid="stFileUploader"] section:hover {
-        border-color: #06b6d4 !important;
-        background: #10161e !important;
+        border-color: #06b6d4 !important; background: #10161e !important;
         box-shadow: 0 0 40px rgba(6, 182, 212, 0.12) !important;
     }
-    div[data-testid="stFileUploader"] section > div {
-        flex-direction: column;
-        text-align: center;
-    }
-    div[data-testid="stFileUploader"] section svg {
-        width: 46px;
-        height: 46px;
-        color: #06b6d4;
-        margin-bottom: 1rem;
-    }
+    div[data-testid="stFileUploader"] section > div { flex-direction: column; text-align: center; }
+    div[data-testid="stFileUploader"] section svg { width: 46px; height: 46px; color: #06b6d4; margin-bottom: 1rem; }
     div[data-testid="stFileUploader"] section small { color: #64748b; font-size: 0.82rem; }
     div[data-testid="stFileUploader"] section span { color: #e2e8f0; font-weight: 600; }
     div[data-testid="stFileUploader"] button {
-        background: #1c1f26 !important;
-        color: #e2e8f0 !important;
-        border: 1px solid #2a2f3a !important;
-        border-radius: 10px !important;
-        padding: 0.55rem 1.2rem !important;
-        font-weight: 600 !important;
-        font-size: 0.85rem !important;
-        margin-top: 1.1rem;
+        background: #1c1f26 !important; color: #e2e8f0 !important;
+        border: 1px solid #2a2f3a !important; border-radius: 10px !important;
+        padding: 0.55rem 1.2rem !important; font-weight: 600 !important;
+        font-size: 0.85rem !important; margin-top: 1.1rem;
     }
-    div[data-testid="stFileUploader"] button:hover {
-        border-color: #06b6d4 !important;
-        color: #22d3ee !important;
-    }
+    div[data-testid="stFileUploader"] button:hover { border-color: #06b6d4 !important; color: #22d3ee !important; }
 
-    /* Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-        color: #ffffff;
-        border: none;
-        border-radius: 12px;
-        padding: 0.85rem 1.6rem;
-        font-weight: 700;
-        font-size: 0.92rem;
-        letter-spacing: 0.3px;
-        transition: all 0.2s ease;
-        width: 100%;
+        color: #ffffff; border: none; border-radius: 12px;
+        padding: 0.85rem 1.6rem; font-weight: 700; font-size: 0.92rem;
+        letter-spacing: 0.3px; transition: all 0.2s ease; width: 100%;
         box-shadow: 0 4px 20px rgba(6, 182, 212, 0.35);
     }
     .stButton > button:hover {
         background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(6, 182, 212, 0.55);
+        transform: translateY(-2px); box-shadow: 0 8px 30px rgba(6, 182, 212, 0.55);
     }
 
-    /* Secondary buttons (inside history cards) */
     .secondary-btn button {
-        background: #1c1f26 !important;
-        color: #e2e8f0 !important;
-        border: 1px solid #2a2f3a !important;
-        box-shadow: none !important;
-        padding: 0.5rem 1rem !important;
-        font-size: 0.8rem !important;
+        background: #1c1f26 !important; color: #e2e8f0 !important;
+        border: 1px solid #2a2f3a !important; box-shadow: none !important;
+        padding: 0.5rem 1rem !important; font-size: 0.8rem !important;
     }
     .secondary-btn button:hover {
-        border-color: #06b6d4 !important;
-        color: #22d3ee !important;
-        transform: none !important;
+        border-color: #06b6d4 !important; color: #22d3ee !important; transform: none !important;
     }
 
-    /* Image preview */
     div[data-testid="stImage"] img {
-        border-radius: 16px;
-        border: 1px solid #1c1f26;
+        border-radius: 16px; border: 1px solid #1c1f26;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
 
-    /* Result block */
     .result-block {
         background: linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(16,185,129,0.03) 100%);
-        border: 1px solid #1c1f26;
-        border-radius: 20px;
-        padding: 2rem 2.2rem;
-        margin-top: 1.5rem;
-        backdrop-filter: blur(20px);
-        position: relative;
-        overflow: hidden;
+        border: 1px solid #1c1f26; border-radius: 20px;
+        padding: 2rem 2.2rem; margin-top: 1.5rem;
+        backdrop-filter: blur(20px); position: relative; overflow: hidden;
     }
     .result-block::before {
-        content: "";
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 3px;
+        content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
         background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%);
     }
     .result-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-bottom: 1.2rem;
-        border-bottom: 1px solid #1c1f26;
-        margin-bottom: 1.5rem;
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 1.2rem; border-bottom: 1px solid #1c1f26; margin-bottom: 1.5rem;
     }
     .result-label {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        font-size: 0.72rem;
-        color: #94a3b8;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        font-weight: 700;
+        display: flex; align-items: center; gap: 0.6rem;
+        font-size: 0.72rem; color: #94a3b8; letter-spacing: 2px;
+        text-transform: uppercase; font-weight: 700;
     }
     .result-label-dot {
-        width: 8px; height: 8px;
-        background: #10b981;
-        border-radius: 50%;
+        width: 8px; height: 8px; background: #10b981; border-radius: 50%;
         box-shadow: 0 0 10px #10b981;
     }
     .result-time { font-size: 0.72rem; color: #475569; }
     .result-text {
-        color: #e2e8f0;
-        font-size: 1.05rem;
-        line-height: 1.9;
-        letter-spacing: 0.1px;
+        color: #e2e8f0; font-size: 1.05rem; line-height: 1.9; letter-spacing: 0.1px;
     }
 
-    /* Chips */
     .chips-row {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        margin-top: 1rem;
-        justify-content: center;
+        display: flex; gap: 0.5rem; flex-wrap: wrap;
+        margin-top: 1rem; justify-content: center;
     }
     .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.35rem 0.75rem;
-        background: rgba(15, 17, 21, 0.8);
-        border: 1px solid #1c1f26;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        color: #94a3b8;
-        font-weight: 500;
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        padding: 0.35rem 0.75rem; background: rgba(15, 17, 21, 0.8);
+        border: 1px solid #1c1f26; border-radius: 999px;
+        font-size: 0.75rem; color: #94a3b8; font-weight: 500;
     }
     .chip strong {color: #e2e8f0; font-weight: 600;}
 
-    /* Scanning */
     .scanning-block {
-        padding: 2.5rem;
-        background: rgba(6, 182, 212, 0.04);
-        border: 1px dashed rgba(6, 182, 212, 0.3);
-        border-radius: 20px;
-        text-align: center;
-        position: relative;
-        overflow: hidden;
+        padding: 2.5rem; background: rgba(6, 182, 212, 0.04);
+        border: 1px dashed rgba(6, 182, 212, 0.3); border-radius: 20px;
+        text-align: center; position: relative; overflow: hidden;
     }
     .scanning-block::before {
-        content: "";
-        position: absolute;
-        top: 0; left: -100%;
+        content: ""; position: absolute; top: 0; left: -100%;
         width: 100%; height: 2px;
         background: linear-gradient(90deg, transparent, #06b6d4, transparent);
         animation: scanline 2s linear infinite;
     }
-    @keyframes scanline {
-        0% { left: -100%; }
-        100% { left: 100%; }
-    }
-    .scanning-block .icon {
-        font-size: 2.5rem;
-        animation: pulse 1.8s ease-in-out infinite;
-        display: inline-block;
-    }
-    @keyframes pulse {
-        0%, 100% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.15); opacity: 0.7; }
-    }
+    @keyframes scanline { 0% { left: -100%; } 100% { left: 100%; } }
+    .scanning-block .icon { font-size: 2.5rem; animation: pulse 1.8s ease-in-out infinite; display: inline-block; }
+    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.7; } }
     .scanning-block .label {
-        color: #22d3ee;
-        font-size: 0.85rem;
-        letter-spacing: 3px;
-        text-transform: uppercase;
-        font-weight: 700;
-        margin-top: 1rem;
+        color: #22d3ee; font-size: 0.85rem; letter-spacing: 3px;
+        text-transform: uppercase; font-weight: 700; margin-top: 1rem;
     }
 
-    /* History card */
-    .history-card {
-        background: rgba(15, 17, 21, 0.7);
-        border: 1px solid #1c1f26;
-        border-radius: 14px;
-        padding: 1rem;
-        margin-bottom: 0.9rem;
-        display: flex;
-        gap: 1rem;
-        align-items: flex-start;
-        transition: all 0.2s ease;
-    }
-    .history-card:hover {
-        border-color: #2a2f3a;
-        background: rgba(15, 17, 21, 0.9);
-    }
-    .history-thumb {
-        width: 80px;
-        height: 80px;
-        border-radius: 10px;
-        object-fit: cover;
-        border: 1px solid #1c1f26;
-        flex-shrink: 0;
-    }
-    .history-meta {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        flex: 1;
-        min-width: 0;
-    }
-    .history-time {
-        font-size: 0.72rem;
-        color: #64748b;
-        letter-spacing: 0.5px;
-        font-weight: 600;
-    }
-    .history-tags {
-        display: flex;
-        gap: 0.35rem;
-        flex-wrap: wrap;
-    }
+    .history-time { font-size: 0.72rem; color: #64748b; letter-spacing: 0.5px; font-weight: 600; }
+    .history-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .history-tag {
-        padding: 0.15rem 0.5rem;
-        background: rgba(6, 182, 212, 0.1);
-        border: 1px solid rgba(6, 182, 212, 0.25);
-        border-radius: 6px;
-        font-size: 0.68rem;
-        color: #67e8f9;
-        font-weight: 600;
+        padding: 0.15rem 0.5rem; background: rgba(6, 182, 212, 0.1);
+        border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 6px;
+        font-size: 0.68rem; color: #67e8f9; font-weight: 600;
     }
     .history-text {
-        font-size: 0.88rem;
-        color: #cbd5e1;
-        line-height: 1.55;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        font-size: 0.88rem; color: #cbd5e1; line-height: 1.55;
+        display: -webkit-box; -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical; overflow: hidden;
     }
 
-    /* Empty */
     .empty-state { text-align: center; padding: 3rem 2rem; }
     .empty-title { font-size: 0.95rem; color: #475569; font-weight: 500; }
-    .empty-icon {
-        font-size: 2.5rem;
-        opacity: 0.4;
-        margin-bottom: 0.8rem;
-    }
+    .empty-icon { font-size: 2.5rem; opacity: 0.4; margin-bottom: 0.8rem; }
 
-    /* Settings sections */
-    .settings-section {
+    .settings-title {
+        font-size: 0.72rem; color: #64748b; text-transform: uppercase;
+        letter-spacing: 2px; font-weight: 700; margin-bottom: 1rem;
+    }
+    .settings-box {
         background: rgba(15, 17, 21, 0.7);
         border: 1px solid #1c1f26;
         border-radius: 14px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-    }
-    .settings-title {
-        font-size: 0.72rem;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        font-weight: 700;
-        margin-bottom: 1rem;
+        padding: 1.5rem 1.6rem;
+        margin-bottom: 1.2rem;
     }
 
-    /* Text */
-    p, span, div, label { color: #cbd5e1; }
-    .stCaption, small { color: #64748b !important; }
-
-    /* Spinner */
-    .stSpinner > div { border-top-color: #06b6d4 !important; }
-
-    /* Alerts */
-    .stAlert {
+    .success-banner {
+        background: linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(6,182,212,0.1) 100%);
+        border: 1px solid rgba(16, 185, 129, 0.4);
         border-radius: 12px;
-        background: rgba(15, 17, 21, 0.8);
-        border: 1px solid #1c1f26;
-    }
-
-    hr { border-color: #1c1f26; margin: 2rem 0; }
-
-    /* Footer */
-    .app-footer {
+        padding: 0.9rem 1.2rem;
+        color: #4ade80;
+        font-weight: 600;
+        font-size: 0.92rem;
+        margin-bottom: 1rem;
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 2rem 0 1rem 0;
-        color: #3f4551;
-        font-size: 0.78rem;
-        letter-spacing: 1px;
+        gap: 0.6rem;
+    }
+
+    p, span, div, label { color: #cbd5e1; }
+    .stCaption, small { color: #64748b !important; }
+    .stSpinner > div { border-top-color: #06b6d4 !important; }
+    .stAlert { border-radius: 12px; background: rgba(15, 17, 21, 0.8); border: 1px solid #1c1f26; }
+    hr { border-color: #1c1f26; margin: 2rem 0; }
+
+    .app-footer {
+        display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+        padding: 2rem 0 1rem 0; color: #3f4551; font-size: 0.78rem; letter-spacing: 1px;
     }
     .app-footer img { width: 16px; height: 16px; border-radius: 4px; opacity: 0.8; }
     .app-footer strong {color: #64748b;}
 
-    /* Slider */
     div[data-testid="stSlider"] > div > div > div > div {
         background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%) !important;
     }
@@ -658,10 +447,6 @@ if not GROQ_API_KEY:
 
 MODEL_NAME = "qwen/qwen3.6-27b"
 
-# ============================================================
-# CLIENT
-# ============================================================
-
 @st.cache_resource
 def get_client():
     return Groq(api_key=GROQ_API_KEY)
@@ -669,43 +454,76 @@ def get_client():
 client = get_client()
 
 # ============================================================
-# SETTINGS INIT
-# ============================================================
-
-if "settings" not in st.session_state:
-    st.session_state.settings = load_settings()
-
-# ============================================================
 # CLEAN RESPONSE
 # ============================================================
+
+REASONING_STARTERS = [
+    "the user wants", "the user is asking", "the user asked",
+    "the prompt asks", "the prompt says",
+    "wait,", "wait ", "looking closer", "looking at",
+    "let me ", "let's ", "actually,", "hmm,", "okay,",
+    "first,", "first ", "i need to", "i should", "i will", "i can", "i'll ",
+    "so i", "so,", "now,", "next,", "then,", "however,",
+    "but wait", "let me re-evaluate", "let me look", "let me count",
+    "draft", "final decision", "refine", "correction", "alternative",
+    "check constraints", "the image appears", "the image is a",
+    "the image provided", "the image features", "the image shows",
+    "top section", "top crop", "top part",
+    "middle section", "middle crop", "middle part",
+    "bottom section", "bottom crop", "bottom part",
+    "panel 1", "panel 2", "panel 3",
+    "subject:", "attire:", "setting:", "word count",
+]
 
 def clean_response(text):
     if not text:
         return ""
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    cleaned = re.sub(r"</?think>", "", cleaned)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned.strip()
+    cleaned = re.sub(r"</?think>", "", cleaned).strip()
+
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", cleaned) if p.strip()]
+    if not paragraphs:
+        return ""
+
+    clean_paragraphs = []
+    for p in paragraphs:
+        lower = p.lower().strip()
+        if any(lower.startswith(r) for r in REASONING_STARTERS):
+            continue
+        if len(p) < 40:
+            continue
+        markers = lower.count("wait") + lower.count("actually") + lower.count("let me")
+        if markers >= 2:
+            continue
+        clean_paragraphs.append(p)
+
+    if not clean_paragraphs and paragraphs:
+        candidate = paragraphs[-1]
+        if len(candidate) > 800:
+            sentences = re.split(r"(?<=[.!?])\s+", candidate)
+            candidate = " ".join(sentences[-3:])
+        return candidate.strip()
+
+    result = max(clean_paragraphs, key=len)
+    result = re.sub(r"\s+", " ", result).strip()
+    result = re.sub(r"^(Final answer|Answer|Description)\s*[:•\-]\s*", "", result, flags=re.IGNORECASE)
+    return result
 
 # ============================================================
-# APP NAV
+# NAV
 # ============================================================
 
 st.markdown(
     f"""
     <div class="app-nav">
         <div class="nav-left">
-            <div class="nav-logo">
-                <img src="{LOGO_DATA_URI}" alt="PixelSage logo" />
-            </div>
+            <div class="nav-logo"><img src="{LOGO_DATA_URI}" alt="PixelSage logo" /></div>
             <div>
                 <div class="nav-brand">PixelSage</div>
                 <div class="nav-sub">IMAGE ANALYSIS STUDIO</div>
             </div>
         </div>
-        <div class="nav-pill">
-            <span class="nav-pill-dot"></span> Engine Ready
-        </div>
+        <div class="nav-pill"><span class="nav-pill-dot"></span> Engine Ready</div>
     </div>
     """,
     unsafe_allow_html=True
@@ -718,9 +536,7 @@ st.markdown(
 st.markdown(
     f"""
     <div class="page-hero">
-        <div class="hero-logo">
-            <img src="{LOGO_DATA_URI}" alt="PixelSage logo" />
-        </div>
+        <div class="hero-logo"><img src="{LOGO_DATA_URI}" alt="PixelSage logo" /></div>
         <h1 class="page-title">See what's <span>really</span> in your photo.</h1>
         <p class="page-sub">Drop an image and PixelSage describes every detail — foreground to background.</p>
     </div>
@@ -729,7 +545,7 @@ st.markdown(
 )
 
 # ============================================================
-# TABS — Analyze / History / Settings
+# TABS
 # ============================================================
 
 tab_analyze, tab_history, tab_settings = st.tabs([
@@ -743,7 +559,6 @@ tab_analyze, tab_history, tab_settings = st.tabs([
 # ============================================================
 
 with tab_analyze:
-    # Detail level from settings
     detail_level = st.radio(
         "Detail level",
         options=["Brief", "Standard", "Detailed"],
@@ -752,11 +567,6 @@ with tab_analyze:
         label_visibility="collapsed",
         key="analyze_detail_level"
     )
-
-    # Sync back to settings
-    if detail_level != st.session_state.settings["detail_level"]:
-        st.session_state.settings["detail_level"] = detail_level
-        save_settings(st.session_state.settings)
 
     uploaded_file = st.file_uploader(
         "Upload image",
@@ -820,38 +630,68 @@ with tab_analyze:
                 }
                 target_len = detail_map.get(detail_level, "100 to 150 words")
 
-                system_prompt = """You are a professional image analyst. Write descriptions as ONE continuous, natural paragraph — like a human expert describing a photo out loud.
+                system_prompt = """You are a professional image analyst. Output ONLY the final description of the image — nothing else.
 
-RULES:
-- Write in ONE flowing paragraph. No bullets, no numbered lists.
-- No reasoning, thinking, or meta-commentary.
-- No phrases like "Let me", "Okay", "Wait", "First I'll".
-- Do not reference instructions or the user.
-- Flow: foreground → middle ground → background → edges/corners → people → environment → colors/shapes/materials/lighting → positions.
-- Weave small details naturally. Sound confident and clear."""
+ABSOLUTE RULES:
+1. Write ONE continuous paragraph in plain English.
+2. NEVER write your thinking, reasoning, or planning.
+3. NEVER start with "The user", "Wait", "Let me", "Looking at", "The image is a", "The prompt", or any meta phrase.
+4. NEVER mention the prompt, the user, panels, sections, or word count.
+5. NEVER use numbered lists, bullets, or headings.
+6. Just describe what is visible, in a natural human voice.
+7. Flow: foreground → middle ground → background → edges → people → environment → colors → positions.
+8. Start directly with the scene, like: "A smiling doctor in a white coat stands..."
 
-                user_prompt = f"""Describe this image in {target_len}. One smooth paragraph. Only the final description."""
+Output format:
+<one clean paragraph>
 
-                response = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": user_prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}"
+That's it. No preamble, no thinking, no explanation."""
+
+                user_prompt = f"""Describe this image in {target_len}. Output ONLY one paragraph — no reasoning, no meta commentary."""
+
+                try:
+                    response = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": user_prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}"
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=st.session_state.settings["max_tokens"],
-                    temperature=st.session_state.settings["temperature"]
-                )
+                                ]
+                            }
+                        ],
+                        max_tokens=st.session_state.settings["max_tokens"],
+                        temperature=st.session_state.settings["temperature"],
+                        extra_body={"reasoning_effort": "none"}
+                    )
+                except Exception:
+                    response = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": user_prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        max_tokens=st.session_state.settings["max_tokens"],
+                        temperature=st.session_state.settings["temperature"]
+                    )
 
                 answer = response.choices[0].message.content
                 answer = clean_response(answer)
@@ -880,7 +720,6 @@ RULES:
                     with st.expander("📋 Copy as plain text"):
                         st.code(answer, language=None)
 
-                    # Save to history
                     add_history_entry(image, answer, detail_level, MODEL_NAME)
                     st.success("✅ Saved to history")
 
@@ -917,7 +756,6 @@ with tab_history:
             unsafe_allow_html=True
         )
     else:
-        # Header with count + clear button
         col_a, col_b = st.columns([3, 1])
         with col_a:
             st.markdown(
@@ -927,17 +765,13 @@ with tab_history:
                 unsafe_allow_html=True
             )
         with col_b:
-            with st.container():
-                st.markdown('<div class="secondary-btn">', unsafe_allow_html=True)
-                if st.button("🗑️ Clear All", key="clear_all", use_container_width=True):
-                    clear_history()
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+            if st.button("🗑️ Clear All", key="clear_all_history_btn", use_container_width=True):
+                clear_history()
+                st.rerun()
 
         st.markdown("")
 
-        # List entries
-        for entry in history:
+        for idx, entry in enumerate(history):
             thumb_path = entry.get("thumbnail", "")
             thumb_exists = Path(thumb_path).exists()
 
@@ -970,22 +804,17 @@ with tab_history:
                 )
 
             with col_actions:
-                with st.container():
-                    st.markdown('<div class="secondary-btn">', unsafe_allow_html=True)
+                with st.expander("👁️ View"):
+                    st.markdown(
+                        f"<div style='font-size:0.9rem;color:#cbd5e1;"
+                        f"line-height:1.7;'>{entry['description']}</div>",
+                        unsafe_allow_html=True
+                    )
+                    st.code(entry['description'], language=None)
 
-                    with st.expander("👁️ View"):
-                        st.markdown(
-                            f"<div style='font-size:0.9rem;color:#cbd5e1;"
-                            f"line-height:1.7;'>{entry['description']}</div>",
-                            unsafe_allow_html=True
-                        )
-                        st.code(entry['description'], language=None)
-
-                    if st.button("🗑️", key=f"del_{entry['id']}", use_container_width=True):
-                        delete_history_entry(entry['id'])
-                        st.rerun()
-
-                    st.markdown('</div>', unsafe_allow_html=True)
+                if st.button("🗑️ Delete", key=f"del_hist_{idx}_{entry['id']}", use_container_width=True):
+                    delete_history_entry(entry['id'])
+                    st.rerun()
 
             st.markdown("---")
 
@@ -994,89 +823,115 @@ with tab_history:
 # ============================================================
 
 with tab_settings:
-    st.markdown(
-        '<div class="settings-title">⚙️ Analysis Preferences</div>',
-        unsafe_allow_html=True
-    )
 
-    settings = st.session_state.settings
+    # Success message (persists across one rerun)
+    if st.session_state.settings_saved_msg:
+        st.markdown(
+            '<div class="success-banner">✅ Settings saved successfully</div>',
+            unsafe_allow_html=True
+        )
+        st.session_state.settings_saved_msg = False
 
-    # Detail level
+    if st.session_state.settings_reset_msg:
+        st.markdown(
+            '<div class="success-banner">✅ Reset to defaults</div>',
+            unsafe_allow_html=True
+        )
+        st.session_state.settings_reset_msg = False
+
+    # ---- Analysis preferences ----
+    st.markdown('<div class="settings-title">⚙️ Analysis Preferences</div>', unsafe_allow_html=True)
+
     st.markdown("**Default detail level**")
-    new_detail = st.radio(
+    selected_detail = st.radio(
         "Default detail level",
         options=["Brief", "Standard", "Detailed"],
-        index=["Brief", "Standard", "Detailed"].index(settings["detail_level"]),
+        index=["Brief", "Standard", "Detailed"].index(st.session_state.settings["detail_level"]),
         horizontal=True,
         label_visibility="collapsed",
-        key="settings_detail"
+        key="settings_detail_radio"
     )
 
     st.markdown("")
-
-    # Temperature
     st.markdown("**Creativity (temperature)**")
-    st.caption("Lower = more focused and accurate. Higher = more creative and varied.")
-    new_temp = st.slider(
+    st.caption("Lower = more focused. Higher = more creative.")
+    selected_temp = st.slider(
         "Temperature",
-        min_value=0.0,
-        max_value=1.0,
-        value=float(settings["temperature"]),
+        min_value=0.0, max_value=1.0,
+        value=float(st.session_state.settings["temperature"]),
         step=0.05,
         label_visibility="collapsed",
-        key="settings_temp"
+        key="settings_temp_slider"
     )
-    st.caption(f"Current: **{new_temp}**")
+    st.caption(f"Current: **{selected_temp}**")
 
     st.markdown("")
-
-    # Max tokens
-    st.markdown("**Maximum response length**")
-    st.caption("Higher = longer, more detailed output.")
-    new_tokens = st.slider(
+    st.markdown("**Maximum response length (tokens)**")
+    st.caption("Higher = longer output.")
+    selected_tokens = st.slider(
         "Max tokens",
-        min_value=300,
-        max_value=2000,
-        value=int(settings["max_tokens"]),
+        min_value=300, max_value=2000,
+        value=int(st.session_state.settings["max_tokens"]),
         step=100,
         label_visibility="collapsed",
-        key="settings_tokens"
+        key="settings_tokens_slider"
     )
-    st.caption(f"Current: **{new_tokens}** tokens")
+    st.caption(f"Current: **{selected_tokens}** tokens")
 
     st.markdown("")
 
-    # Save button
-    if st.button("💾  Save Settings", use_container_width=True, key="save_settings"):
-        st.session_state.settings["detail_level"] = new_detail
-        st.session_state.settings["temperature"] = new_temp
-        st.session_state.settings["max_tokens"] = new_tokens
-        save_settings(st.session_state.settings)
-        st.success("✅ Settings saved")
-        st.rerun()
+    # ---- Action buttons ----
+    col_save, col_reset = st.columns(2)
+
+    with col_save:
+        if st.button("💾  Save Settings", use_container_width=True, key="btn_save_settings"):
+            new_settings = {
+                "detail_level": selected_detail,
+                "temperature": selected_temp,
+                "max_tokens": selected_tokens,
+            }
+            st.session_state.settings = new_settings
+            save_settings_file(new_settings)
+            st.session_state.settings_saved_msg = True
+            st.rerun()
+
+    with col_reset:
+        if st.button("↺  Reset to Defaults", use_container_width=True, key="btn_reset_settings"):
+            st.session_state.settings = DEFAULT_SETTINGS.copy()
+            save_settings_file(DEFAULT_SETTINGS)
+            st.session_state.settings_reset_msg = True
+            st.rerun()
 
     st.markdown("---")
 
-    # Reset
+    # ---- Current saved settings display ----
+    st.markdown('<div class="settings-title">📋 Currently Saved</div>', unsafe_allow_html=True)
+
+    current = st.session_state.settings
     st.markdown(
-        '<div class="settings-title">🔄 Reset</div>',
+        f"""
+        <div class="settings-box">
+            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #1c1f26;">
+                <span style="color:#94a3b8;">Detail level</span>
+                <strong style="color:#e2e8f0;">{current['detail_level']}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #1c1f26;">
+                <span style="color:#94a3b8;">Temperature</span>
+                <strong style="color:#e2e8f0;">{current['temperature']}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;">
+                <span style="color:#94a3b8;">Max tokens</span>
+                <strong style="color:#e2e8f0;">{current['max_tokens']}</strong>
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True
     )
-
-    if st.button("↺  Reset to Defaults", use_container_width=True, key="reset_settings"):
-        st.session_state.settings = DEFAULT_SETTINGS.copy()
-        save_settings(st.session_state.settings)
-        st.success("✅ Reset to defaults")
-        st.rerun()
 
     st.markdown("---")
 
-    # About / Info
-    st.markdown(
-        '<div class="settings-title">ℹ️ About</div>',
-        unsafe_allow_html=True
-    )
-
+    # ---- About ----
+    st.markdown('<div class="settings-title">ℹ️ About</div>', unsafe_allow_html=True)
     st.markdown(
         f"""
         **PixelSage** — Image Analysis Studio
