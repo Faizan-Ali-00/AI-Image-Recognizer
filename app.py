@@ -179,7 +179,6 @@ st.markdown("""
     section[data-testid="stSidebar"] > div:first-child { padding-top: 1.2rem; }
     section[data-testid="stSidebar"] .block-container { padding: 0; }
 
-    /* Sidebar brand */
     .side-brand {
         display: flex; align-items: center; gap: 0.7rem;
         padding: 0.4rem 0.3rem 1.2rem 0.3rem;
@@ -210,19 +209,46 @@ st.markdown("""
     section[data-testid="stSidebar"] div[data-baseweb="tab-highlight"] { display: none !important; }
     section[data-testid="stSidebar"] div[data-baseweb="tab-border"] { display: none !important; }
 
-    /* Main hero */
-    .page-hero { text-align: center; margin-bottom: 1.8rem; }
-    .hero-logo {
-        width: 68px; height: 68px; border-radius: 18px;
-        margin: 0 auto 1rem auto;
-        box-shadow: 0 10px 40px rgba(6, 182, 212, 0.35);
-        animation: logoFloat 4s ease-in-out infinite;
-        overflow: hidden;
+    /* MAIN HERO — logo + name side by side */
+    .page-hero {
+        text-align: center;
+        margin-bottom: 2rem;
     }
-    .hero-logo img { width: 68px; height: 68px; display: block; }
-    @keyframes logoFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    .hero-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.4rem;
+        padding: 0.6rem 1.4rem;
+        background: rgba(15, 17, 21, 0.6);
+        border: 1px solid #1c1f26;
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+    }
+    .hero-brand-logo {
+        width: 56px; height: 56px;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(6, 182, 212, 0.4);
+        flex-shrink: 0;
+        animation: logoFloat 4s ease-in-out infinite;
+    }
+    .hero-brand-logo img { width: 56px; height: 56px; display: block; }
+    @keyframes logoFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+    .hero-brand-name {
+        font-size: 2rem;
+        font-weight: 900;
+        letter-spacing: -1px;
+        background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+        line-height: 1;
+        text-align: left;
+    }
+
     .page-title {
-        font-size: 2.4rem; font-weight: 800; color: #f8fafc;
+        font-size: 2.2rem; font-weight: 800; color: #f8fafc;
         letter-spacing: -1.2px; line-height: 1.05; margin: 0 0 0.6rem 0;
     }
     .page-title span {
@@ -288,7 +314,7 @@ st.markdown("""
         transform: translateY(-2px); box-shadow: 0 8px 30px rgba(6, 182, 212, 0.55);
     }
 
-    /* Sidebar buttons (secondary) */
+    /* Sidebar buttons */
     section[data-testid="stSidebar"] .stButton > button {
         background: #1c1f26 !important; color: #e2e8f0 !important;
         border: 1px solid #2a2f3a !important; box-shadow: none !important;
@@ -299,18 +325,12 @@ st.markdown("""
         border-color: #06b6d4 !important; color: #22d3ee !important;
         background: #1f232b !important; box-shadow: none !important;
     }
-    section[data-testid="stSidebar"] .stButton > button:focus {
-        box-shadow: none !important;
-        border-color: #06b6d4 !important;
-    }
 
-    /* Image preview */
     div[data-testid="stImage"] img {
         border-radius: 16px; border: 1px solid #1c1f26;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
 
-    /* Result block */
     .result-block {
         background: linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(16,185,129,0.03) 100%);
         border: 1px solid #1c1f26; border-radius: 20px;
@@ -339,7 +359,6 @@ st.markdown("""
         color: #e2e8f0; font-size: 1.05rem; line-height: 1.9; letter-spacing: 0.1px;
     }
 
-    /* Chips */
     .chips-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; justify-content: center; }
     .chip {
         display: inline-flex; align-items: center; gap: 0.4rem;
@@ -349,7 +368,6 @@ st.markdown("""
     }
     .chip strong {color: #e2e8f0; font-weight: 600;}
 
-    /* Scanning */
     .scanning-block {
         padding: 2.5rem; background: rgba(6, 182, 212, 0.04);
         border: 1px dashed rgba(6, 182, 212, 0.3); border-radius: 20px;
@@ -369,7 +387,6 @@ st.markdown("""
         text-transform: uppercase; font-weight: 700; margin-top: 1rem;
     }
 
-    /* Sidebar history cards */
     .side-history-card {
         background: rgba(15, 17, 21, 0.7);
         border: 1px solid #1c1f26;
@@ -406,7 +423,6 @@ st.markdown("""
         margin-top: 0.3rem;
     }
 
-    /* Sidebar section title */
     .side-section-title {
         font-size: 0.68rem; color: #64748b; text-transform: uppercase;
         letter-spacing: 1.5px; font-weight: 700; margin: 1rem 0 0.6rem 0;
@@ -420,7 +436,6 @@ st.markdown("""
     }
     .side-empty-icon { font-size: 1.8rem; opacity: 0.4; margin-bottom: 0.5rem; }
 
-    /* Success banner */
     .success-banner {
         background: linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(6,182,212,0.1) 100%);
         border: 1px solid rgba(16, 185, 129, 0.4);
@@ -432,11 +447,9 @@ st.markdown("""
         margin-bottom: 0.8rem;
     }
 
-    /* Empty state */
     .empty-state { text-align: center; padding: 3rem 2rem; }
     .empty-title { font-size: 0.95rem; color: #475569; font-weight: 500; }
 
-    /* Sidebar text */
     section[data-testid="stSidebar"] p,
     section[data-testid="stSidebar"] span,
     section[data-testid="stSidebar"] label,
@@ -444,12 +457,10 @@ st.markdown("""
     section[data-testid="stSidebar"] .stCaption,
     section[data-testid="stSidebar"] small { color: #64748b !important; }
 
-    /* Sliders in sidebar */
     div[data-testid="stSlider"] > div > div > div > div {
         background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%) !important;
     }
 
-    /* Radio in sidebar */
     section[data-testid="stSidebar"] div[role="radiogroup"] {
         background: rgba(15, 17, 21, 0.6);
         border: 1px solid #1c1f26;
@@ -467,7 +478,6 @@ st.markdown("""
         text-align: center;
     }
 
-    /* App footer */
     .app-footer {
         display: flex; align-items: center; justify-content: center; gap: 0.5rem;
         padding: 2rem 0 1rem 0; color: #3f4551; font-size: 0.78rem; letter-spacing: 1px;
@@ -564,7 +574,6 @@ def clean_response(text):
 # ============================================================
 
 with st.sidebar:
-    # Brand
     st.markdown(
         f"""
         <div class="side-brand">
@@ -578,10 +587,9 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-    # Sidebar tabs: History / Settings
     tab_history, tab_settings = st.tabs(["📚 History", "⚙️ Settings"])
 
-    # -------- HISTORY TAB --------
+    # -------- HISTORY --------
     with tab_history:
         history = load_history()
 
@@ -611,13 +619,17 @@ with st.sidebar:
                 thumb_path = entry.get("thumbnail", "")
                 thumb_exists = Path(thumb_path).exists()
 
-                # Card
-                thumb_html = (
-                    f'<img src="data:image/jpeg;base64,{base64.b64encode(open(thumb_path, "rb").read()).decode()}" />'
-                    if thumb_exists else
-                    '<div style="width:54px;height:54px;background:#1c1f26;border-radius:8px;'
-                    'display:flex;align-items:center;justify-content:center;color:#475569;flex-shrink:0;">🖼️</div>'
-                )
+                if thumb_exists:
+                    thumb_html = (
+                        f'<img src="data:image/jpeg;base64,'
+                        f'{base64.b64encode(open(thumb_path, "rb").read()).decode()}" />'
+                    )
+                else:
+                    thumb_html = (
+                        '<div style="width:54px;height:54px;background:#1c1f26;'
+                        'border-radius:8px;display:flex;align-items:center;'
+                        'justify-content:center;color:#475569;flex-shrink:0;">🖼️</div>'
+                    )
 
                 st.markdown(
                     f"""
@@ -644,7 +656,7 @@ with st.sidebar:
                         delete_history_entry(entry['id'])
                         st.rerun()
 
-    # -------- SETTINGS TAB --------
+    # -------- SETTINGS --------
     with tab_settings:
         if st.session_state.settings_saved_msg:
             st.markdown(
@@ -660,7 +672,6 @@ with st.sidebar:
             )
             st.session_state.settings_reset_msg = False
 
-        # Detail level
         st.markdown('<div class="side-section-title">Default Detail Level</div>', unsafe_allow_html=True)
         selected_detail = st.radio(
             "Detail level",
@@ -671,7 +682,6 @@ with st.sidebar:
             key="side_settings_detail"
         )
 
-        # Temperature
         st.markdown('<div class="side-section-title">Creativity (Temperature)</div>', unsafe_allow_html=True)
         selected_temp = st.slider(
             "Temperature",
@@ -683,7 +693,6 @@ with st.sidebar:
         )
         st.caption(f"Current: **{selected_temp}**")
 
-        # Max tokens
         st.markdown('<div class="side-section-title">Max Response Length</div>', unsafe_allow_html=True)
         selected_tokens = st.slider(
             "Max tokens",
@@ -697,7 +706,6 @@ with st.sidebar:
 
         st.markdown("")
 
-        # Actions
         if st.button("💾  Save Settings", use_container_width=True, key="side_save_settings"):
             new_settings = {
                 "detail_level": selected_detail,
@@ -710,8 +718,20 @@ with st.sidebar:
             st.rerun()
 
         if st.button("↺  Reset to Defaults", use_container_width=True, key="side_reset_settings"):
+            # 1. Save defaults to file + session
             st.session_state.settings = DEFAULT_SETTINGS.copy()
             save_settings_file(DEFAULT_SETTINGS)
+
+            # 2. 🔑 Delete widget keys so widgets reload with default values
+            for key in [
+                "side_settings_detail",
+                "side_settings_temp",
+                "side_settings_tokens",
+                "main_detail_level",
+            ]:
+                if key in st.session_state:
+                    del st.session_state[key]
+
             st.session_state.settings_reset_msg = True
             st.rerun()
 
@@ -746,15 +766,19 @@ with st.sidebar:
 st.markdown(
     f"""
     <div class="page-hero">
-        <div class="hero-logo"><img src="{LOGO_DATA_URI}" alt="PixelSage logo" /></div>
-        <h1 class="page-title">See what's <span>really</span> in your photo.</h1>
+        <div class="hero-brand">
+            <div class="hero-brand-logo">
+                <img src="{LOGO_DATA_URI}" alt="PixelSage logo" />
+            </div>
+            <h1 class="hero-brand-name">PixelSage</h1>
+        </div>
+        <h2 class="page-title">See what's <span>really</span> in your photo.</h2>
         <p class="page-sub">Drop an image and PixelSage describes every detail — foreground to background.</p>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# Detail level for this analysis (uses saved default)
 detail_level = st.radio(
     "Detail level",
     options=["Brief", "Standard", "Detailed"],
