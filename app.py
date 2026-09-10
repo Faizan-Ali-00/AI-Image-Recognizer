@@ -12,14 +12,37 @@ from datetime import datetime
 # ============================================================
 
 st.set_page_config(
-    page_title="PixelSage",
+    page_title="PixelSage — Image Analyzer",
     page_icon="📸",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ============================================================
-# CSS — Real app look
+# PIXELSAGE LOGO (inline SVG)
+# ============================================================
+
+LOGO_SVG = """
+<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="psGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="36" height="36" rx="10" fill="url(#psGrad)"/>
+  <circle cx="18" cy="18" r="8.5" fill="none" stroke="#ffffff" stroke-width="1.8"/>
+  <circle cx="18" cy="18" r="3.2" fill="#ffffff"/>
+  <line x1="24" y1="24" x2="29" y2="29" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  <line x1="9" y1="9" x2="13" y2="13" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="27" y1="9" x2="23" y2="13" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+</svg>
+"""
+
+LOGO_DATA_URI = "data:image/svg+xml;base64," + base64.b64encode(LOGO_SVG.encode("utf-8")).decode("utf-8")
+
+# ============================================================
+# CSS
 # ============================================================
 
 st.markdown("""
@@ -28,64 +51,61 @@ st.markdown("""
     #MainMenu, footer {visibility: hidden;}
     header[data-testid="stHeader"] {background: transparent; height: 0;}
     .block-container {
-        padding-top: 1rem;
+        padding-top: 1.2rem;
         padding-bottom: 2rem;
-        max-width: 960px;
+        max-width: 900px;
     }
 
-    /* Top nav */
+    /* ---------- Top nav ---------- */
     .app-nav {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.9rem 1.5rem;
-        background: rgba(15, 17, 21, 0.85);
+        padding: 0.85rem 1.3rem;
+        background: rgba(15, 17, 21, 0.9);
         border: 1px solid #1c1f26;
-        border-radius: 16px;
+        border-radius: 14px;
         backdrop-filter: blur(20px);
         margin-bottom: 2.5rem;
     }
-    .nav-left { display: flex; align-items: center; gap: 0.85rem; }
+    .nav-left { display: flex; align-items: center; gap: 0.75rem; }
     .nav-logo {
         width: 36px; height: 36px;
         border-radius: 10px;
-        background: linear-gradient(135deg, #06b6d4 0%, #10b981 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1rem;
-        font-weight: 800;
-        color: #ffffff;
-        letter-spacing: -0.5px;
-        box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+        box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
+        overflow: hidden;
     }
+    .nav-logo img { width: 36px; height: 36px; display: block; }
     .nav-brand {
-        font-size: 1.05rem;
+        font-size: 1rem;
         font-weight: 700;
         color: #f1f5f9;
         letter-spacing: -0.3px;
         line-height: 1.1;
     }
     .nav-sub {
-        font-size: 0.68rem;
+        font-size: 0.66rem;
         color: #64748b;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.6px;
         margin-top: 1px;
     }
     .nav-pill {
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        padding: 0.35rem 0.75rem;
+        padding: 0.32rem 0.7rem;
         background: rgba(6, 182, 212, 0.08);
         border: 1px solid rgba(6, 182, 212, 0.3);
         border-radius: 999px;
-        font-size: 0.72rem;
+        font-size: 0.7rem;
         color: #67e8f9;
         font-weight: 600;
     }
     .nav-pill-dot {
-        width: 7px; height: 7px;
+        width: 6px; height: 6px;
         background: #22d3ee;
         border-radius: 50%;
         box-shadow: 0 0 8px #22d3ee;
@@ -96,10 +116,23 @@ st.markdown("""
         50% { opacity: 0.3; }
     }
 
-    /* Hero */
-    .page-hero { text-align: center; margin-bottom: 2.5rem; }
+    /* ---------- Hero ---------- */
+    .page-hero { text-align: center; margin-bottom: 2.2rem; }
+    .hero-logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+        margin: 0 auto 1.2rem auto;
+        box-shadow: 0 10px 40px rgba(6, 182, 212, 0.35);
+        animation: logoFloat 4s ease-in-out infinite;
+    }
+    .hero-logo img { width: 72px; height: 72px; display: block; border-radius: 18px; }
+    @keyframes logoFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+    }
     .page-title {
-        font-size: 2.6rem;
+        font-size: 2.5rem;
         font-weight: 800;
         color: #f8fafc;
         letter-spacing: -1.2px;
@@ -112,53 +145,54 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
     }
     .page-sub {
-        font-size: 1rem;
+        font-size: 0.98rem;
         color: #94a3b8;
-        letter-spacing: 0.2px;
         margin: 0;
     }
 
-    /* Tabs */
-    .tabs-row {
+    /* ---------- Detail level segmented control ---------- */
+    div[role="radiogroup"] {
         display: flex;
-        gap: 0.4rem;
+        justify-content: center;
+        gap: 0.35rem;
         background: rgba(15, 17, 21, 0.6);
         border: 1px solid #1c1f26;
         border-radius: 12px;
-        padding: 0.35rem;
-        margin-bottom: 2rem;
+        padding: 0.3rem;
         width: fit-content;
-        margin-left: auto;
-        margin-right: auto;
+        margin: 0 auto 1.5rem auto;
     }
-    .tab-item {
-        padding: 0.5rem 1.1rem;
-        border-radius: 8px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: #64748b;
-        letter-spacing: 0.3px;
+    div[role="radiogroup"] label {
+        padding: 0.5rem 1.2rem !important;
+        border-radius: 8px !important;
+        font-size: 0.82rem !important;
+        font-weight: 600 !important;
+        color: #64748b !important;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
-    .tab-active {
-        background: #1c1f26;
-        color: #f1f5f9;
+    div[role="radiogroup"] label:hover { color: #94a3b8 !important; }
+    div[role="radiogroup"] label:has(input:checked) {
+        background: #1c1f26 !important;
+        color: #f1f5f9 !important;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
+    div[role="radiogroup"] input {display: none;}
 
-    /* Drop zone */
+    /* ---------- Drop zone ---------- */
     div[data-testid="stFileUploader"] {
         background: transparent !important;
         border: none !important;
         padding: 0 !important;
     }
-    div[data-testid="stFileUploader"] > label {display: none;}
+    div[data-testid="stFileUploader"] > label {display: none !important;}
     div[data-testid="stFileUploader"] section {
         background: #0f1115 !important;
         border: 2px dashed #2a2f3a !important;
         border-radius: 20px !important;
-        padding: 3.5rem 2rem !important;
+        padding: 4rem 2rem !important;
         transition: all 0.25s ease !important;
-        min-height: 300px !important;
+        min-height: 340px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -166,36 +200,42 @@ st.markdown("""
     div[data-testid="stFileUploader"] section:hover {
         border-color: #06b6d4 !important;
         background: #10161e !important;
-        box-shadow: 0 0 40px rgba(6, 182, 212, 0.15) !important;
+        box-shadow: 0 0 40px rgba(6, 182, 212, 0.12) !important;
     }
     div[data-testid="stFileUploader"] section > div {
         flex-direction: column;
         text-align: center;
     }
     div[data-testid="stFileUploader"] section svg {
-        width: 42px;
-        height: 42px;
+        width: 46px;
+        height: 46px;
         color: #06b6d4;
         margin-bottom: 1rem;
     }
-    div[data-testid="stFileUploader"] section small { color: #64748b; font-size: 0.85rem; }
-    div[data-testid="stFileUploader"] section span { color: #e2e8f0; font-weight: 600; }
+    div[data-testid="stFileUploader"] section small {
+        color: #64748b;
+        font-size: 0.82rem;
+    }
+    div[data-testid="stFileUploader"] section span {
+        color: #e2e8f0;
+        font-weight: 600;
+    }
     div[data-testid="stFileUploader"] button {
         background: #1c1f26 !important;
         color: #e2e8f0 !important;
         border: 1px solid #2a2f3a !important;
         border-radius: 10px !important;
-        padding: 0.55rem 1.1rem !important;
+        padding: 0.55rem 1.2rem !important;
         font-weight: 600 !important;
         font-size: 0.85rem !important;
-        margin-top: 1rem;
+        margin-top: 1.1rem;
     }
     div[data-testid="stFileUploader"] button:hover {
         border-color: #06b6d4 !important;
         color: #22d3ee !important;
     }
 
-    /* Buttons */
+    /* ---------- Buttons ---------- */
     .stButton > button {
         background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
         color: #ffffff;
@@ -215,14 +255,14 @@ st.markdown("""
         box-shadow: 0 8px 30px rgba(6, 182, 212, 0.55);
     }
 
-    /* Image preview */
+    /* ---------- Image preview ---------- */
     div[data-testid="stImage"] img {
         border-radius: 16px;
         border: 1px solid #1c1f26;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
 
-    /* Result block */
+    /* ---------- Result block ---------- */
     .result-block {
         background: linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(16,185,129,0.03) 100%);
         border: 1px solid #1c1f26;
@@ -272,12 +312,13 @@ st.markdown("""
         letter-spacing: 0.1px;
     }
 
-    /* Chips */
+    /* ---------- Chips ---------- */
     .chips-row {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
-        margin-top: 1.2rem;
+        margin-top: 1rem;
+        justify-content: center;
     }
     .chip {
         display: inline-flex;
@@ -293,19 +334,7 @@ st.markdown("""
     }
     .chip strong {color: #e2e8f0; font-weight: 600;}
 
-    /* Empty */
-    .empty-state {
-        text-align: center;
-        padding: 4rem 2rem;
-        background: rgba(15, 17, 21, 0.5);
-        border: 1px dashed #1c1f26;
-        border-radius: 20px;
-    }
-    .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
-    .empty-title { font-size: 1.1rem; color: #94a3b8; font-weight: 600; margin-bottom: 0.3rem; }
-    .empty-sub { font-size: 0.85rem; color: #475569; }
-
-    /* Scanning */
+    /* ---------- Scanning ---------- */
     .scanning-block {
         padding: 2.5rem;
         background: rgba(6, 182, 212, 0.04);
@@ -345,14 +374,25 @@ st.markdown("""
         margin-top: 1rem;
     }
 
-    /* Text */
+    /* ---------- Empty state ---------- */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+    }
+    .empty-title {
+        font-size: 0.95rem;
+        color: #475569;
+        font-weight: 500;
+    }
+
+    /* ---------- Text ---------- */
     p, span, div, label { color: #cbd5e1; }
     .stCaption, small { color: #64748b !important; }
 
-    /* Spinner */
+    /* ---------- Spinner ---------- */
     .stSpinner > div { border-top-color: #06b6d4 !important; }
 
-    /* Alerts */
+    /* ---------- Alerts ---------- */
     .stAlert {
         border-radius: 12px;
         background: rgba(15, 17, 21, 0.8);
@@ -361,14 +401,18 @@ st.markdown("""
 
     hr { border-color: #1c1f26; margin: 2rem 0; }
 
-    /* Footer */
+    /* ---------- Footer ---------- */
     .app-footer {
-        text-align: center;
-        padding: 2.5rem 0 1rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 2rem 0 1rem 0;
         color: #3f4551;
         font-size: 0.78rem;
         letter-spacing: 1px;
     }
+    .app-footer img { width: 16px; height: 16px; border-radius: 4px; opacity: 0.8; }
     .app-footer strong {color: #64748b;}
 </style>
 """, unsafe_allow_html=True)
@@ -412,14 +456,16 @@ def clean_response(text):
     return cleaned.strip()
 
 # ============================================================
-# APP NAV
+# APP NAV (with logo)
 # ============================================================
 
 st.markdown(
-    """
+    f"""
     <div class="app-nav">
         <div class="nav-left">
-            <div class="nav-logo">PS</div>
+            <div class="nav-logo">
+                <img src="{LOGO_DATA_URI}" alt="PixelSage logo" />
+            </div>
             <div>
                 <div class="nav-brand">PixelSage</div>
                 <div class="nav-sub">IMAGE ANALYSIS STUDIO</div>
@@ -434,29 +480,17 @@ st.markdown(
 )
 
 # ============================================================
-# HERO
+# HERO (with logo)
 # ============================================================
 
 st.markdown(
-    """
+    f"""
     <div class="page-hero">
-        <h1 class="page-title">Analyze any image <span>instantly.</span></h1>
-        <p class="page-sub">Upload a photo and PixelSage will describe every detail — from the foreground to the corners.</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# ============================================================
-# TABS (visual only)
-# ============================================================
-
-st.markdown(
-    """
-    <div class="tabs-row">
-        <div class="tab-item tab-active">📸 Analyze</div>
-        <div class="tab-item">📚 History</div>
-        <div class="tab-item">⚙️ Settings</div>
+        <div class="hero-logo">
+            <img src="{LOGO_DATA_URI}" alt="PixelSage logo" />
+        </div>
+        <h1 class="page-title">See what's <span>really</span> in your photo.</h1>
+        <p class="page-sub">Drop an image and PixelSage describes every detail — foreground to background.</p>
     </div>
     """,
     unsafe_allow_html=True
@@ -473,8 +507,6 @@ detail_level = st.radio(
     horizontal=True,
     label_visibility="collapsed"
 )
-
-st.markdown("")
 
 # ============================================================
 # UPLOAD / PREVIEW / RESULT
@@ -541,24 +573,17 @@ if uploaded_file:
             }
             target_len = detail_map.get(detail_level, "100 to 150 words")
 
-            # System prompt: forces natural, remembering-style output
-            system_prompt = """You are a professional image analyst. Write your descriptions as a single, natural, flowing paragraph — exactly like a human expert looking at a photo would describe it out loud.
+            system_prompt = """You are a professional image analyst. Write descriptions as ONE continuous, natural paragraph — like a human expert describing a photo out loud.
 
-CRITICAL STYLE RULES:
-- Write as ONE continuous paragraph, no bullet points, no numbered lists.
-- Do NOT show any reasoning, thinking, or meta-commentary.
-- Do NOT use phrases like "Let me", "Okay", "First, I'll look at...", "Wait".
-- Do NOT reference instructions, prompts, or the user.
-- Just describe what is visible, in order from foreground to background.
-- Remember the ENTIRE image — including edges and corners — and weave small details in naturally.
-- Sound confident and clear, like a professional analyst."""
+RULES:
+- Write in ONE flowing paragraph. No bullets, no numbered lists.
+- No reasoning, thinking, or meta-commentary.
+- No phrases like "Let me", "Okay", "Wait", "First I'll".
+- Do not reference instructions or the user.
+- Flow: foreground → middle ground → background → edges/corners → people → environment → colors/shapes/materials/lighting → positions.
+- Weave small details naturally. Sound confident and clear."""
 
-            user_prompt = f"""Describe this image in {target_len}.
-
-Flow your description naturally in this order:
-foreground → middle ground → background → edges and corners → people (or note their absence) → environment → colors, shapes, materials, lighting → positions.
-
-Write as ONE smooth paragraph. Just the final description, nothing else."""
+            user_prompt = f"""Describe this image in {target_len}. One smooth paragraph. Only the final description."""
 
             response = client.chat.completions.create(
                 model=MODEL_NAME,
@@ -617,19 +642,22 @@ else:
     st.markdown(
         """
         <div class="empty-state">
-            <div class="empty-icon">🖼️</div>
-            <div class="empty-title">No image yet</div>
-            <div class="empty-sub">Upload an image above to get started</div>
+            <div class="empty-title">Upload an image above to get started</div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
 # ============================================================
-# FOOTER
+# FOOTER (with mini logo)
 # ============================================================
 
 st.markdown(
-    '<div class="app-footer"><strong>PixelSage</strong> · Snap it · See it · Understand it</div>',
+    f"""
+    <div class="app-footer">
+        <img src="{LOGO_DATA_URI}" alt="PixelSage" />
+        <strong>PixelSage</strong> · Snap it · See it · Understand it
+    </div>
+    """,
     unsafe_allow_html=True
 )
