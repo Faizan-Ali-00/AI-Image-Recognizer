@@ -159,6 +159,11 @@ if "settings_saved_msg" not in st.session_state:
 if "settings_reset_msg" not in st.session_state:
     st.session_state.settings_reset_msg = False
 
+# 🔑 KEY FIX: A counter that changes when reset is pressed.
+# Changing the counter changes the widget keys, forcing fresh re-init.
+if "settings_version" not in st.session_state:
+    st.session_state.settings_version = 0
+
 # ============================================================
 # CSS
 # ============================================================
@@ -170,7 +175,6 @@ st.markdown("""
     header[data-testid="stHeader"] {background: transparent;}
     .block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 900px; }
 
-    /* Sidebar */
     section[data-testid="stSidebar"] {
         background: #0b0d11;
         border-right: 1px solid #1c1f26;
@@ -190,7 +194,6 @@ st.markdown("""
     .side-brand-text h3 { font-size: 0.98rem; font-weight: 700; color: #f1f5f9; margin: 0; line-height: 1.1; letter-spacing: -0.3px; }
     .side-brand-text p { font-size: 0.64rem; color: #64748b; margin: 1px 0 0 0; letter-spacing: 0.6px; }
 
-    /* Sidebar tabs */
     section[data-testid="stSidebar"] button[data-baseweb="tab"] {
         background: transparent !important; color: #64748b !important;
         font-weight: 600 !important; font-size: 0.82rem !important;
@@ -209,11 +212,7 @@ st.markdown("""
     section[data-testid="stSidebar"] div[data-baseweb="tab-highlight"] { display: none !important; }
     section[data-testid="stSidebar"] div[data-baseweb="tab-border"] { display: none !important; }
 
-    /* MAIN HERO — logo + name side by side */
-    .page-hero {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
+    .page-hero { text-align: center; margin-bottom: 2rem; }
     .hero-brand {
         display: inline-flex;
         align-items: center;
@@ -246,7 +245,6 @@ st.markdown("""
         line-height: 1;
         text-align: left;
     }
-
     .page-title {
         font-size: 2.2rem; font-weight: 800; color: #f8fafc;
         letter-spacing: -1.2px; line-height: 1.05; margin: 0 0 0.6rem 0;
@@ -257,7 +255,6 @@ st.markdown("""
     }
     .page-sub { font-size: 0.95rem; color: #94a3b8; margin: 0; }
 
-    /* Detail radio in main */
     div[role="radiogroup"] {
         display: flex; justify-content: center; gap: 0.35rem;
         background: rgba(15, 17, 21, 0.6);
@@ -276,7 +273,6 @@ st.markdown("""
     }
     div[role="radiogroup"] input {display: none;}
 
-    /* Drop zone */
     div[data-testid="stFileUploader"] { background: transparent !important; border: none !important; padding: 0 !important; }
     div[data-testid="stFileUploader"] > label {display: none !important;}
     div[data-testid="stFileUploader"] section {
@@ -301,7 +297,6 @@ st.markdown("""
     }
     div[data-testid="stFileUploader"] button:hover { border-color: #06b6d4 !important; color: #22d3ee !important; }
 
-    /* Main buttons */
     .stButton > button {
         background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
         color: #ffffff; border: none; border-radius: 12px;
@@ -314,7 +309,6 @@ st.markdown("""
         transform: translateY(-2px); box-shadow: 0 8px 30px rgba(6, 182, 212, 0.55);
     }
 
-    /* Sidebar buttons */
     section[data-testid="stSidebar"] .stButton > button {
         background: #1c1f26 !important; color: #e2e8f0 !important;
         border: 1px solid #2a2f3a !important; box-shadow: none !important;
@@ -428,12 +422,7 @@ st.markdown("""
         letter-spacing: 1.5px; font-weight: 700; margin: 1rem 0 0.6rem 0;
     }
 
-    .side-empty {
-        text-align: center;
-        padding: 2rem 0.5rem;
-        color: #475569;
-        font-size: 0.82rem;
-    }
+    .side-empty { text-align: center; padding: 2rem 0.5rem; color: #475569; font-size: 0.82rem; }
     .side-empty-icon { font-size: 1.8rem; opacity: 0.4; margin-bottom: 0.5rem; }
 
     .success-banner {
@@ -672,6 +661,9 @@ with st.sidebar:
             )
             st.session_state.settings_reset_msg = False
 
+        # 🔑 Use version in widget keys — changing it forces a fresh widget
+        v = st.session_state.settings_version
+
         st.markdown('<div class="side-section-title">Default Detail Level</div>', unsafe_allow_html=True)
         selected_detail = st.radio(
             "Detail level",
@@ -679,7 +671,7 @@ with st.sidebar:
             index=["Brief", "Standard", "Detailed"].index(st.session_state.settings["detail_level"]),
             horizontal=True,
             label_visibility="collapsed",
-            key="side_settings_detail"
+            key=f"side_settings_detail_v{v}"
         )
 
         st.markdown('<div class="side-section-title">Creativity (Temperature)</div>', unsafe_allow_html=True)
@@ -689,7 +681,7 @@ with st.sidebar:
             value=float(st.session_state.settings["temperature"]),
             step=0.05,
             label_visibility="collapsed",
-            key="side_settings_temp"
+            key=f"side_settings_temp_v{v}"
         )
         st.caption(f"Current: **{selected_temp}**")
 
@@ -700,13 +692,13 @@ with st.sidebar:
             value=int(st.session_state.settings["max_tokens"]),
             step=100,
             label_visibility="collapsed",
-            key="side_settings_tokens"
+            key=f"side_settings_tokens_v{v}"
         )
         st.caption(f"Current: **{selected_tokens}** tokens")
 
         st.markdown("")
 
-        if st.button("💾  Save Settings", use_container_width=True, key="side_save_settings"):
+        if st.button("💾  Save Settings", use_container_width=True, key=f"side_save_settings_v{v}"):
             new_settings = {
                 "detail_level": selected_detail,
                 "temperature": selected_temp,
@@ -717,20 +709,18 @@ with st.sidebar:
             st.session_state.settings_saved_msg = True
             st.rerun()
 
-        if st.button("↺  Reset to Defaults", use_container_width=True, key="side_reset_settings"):
-            # 1. Save defaults to file + session
+        if st.button("↺  Reset to Defaults", use_container_width=True, key=f"side_reset_settings_v{v}"):
+            # 1. Reset the settings dict
             st.session_state.settings = DEFAULT_SETTINGS.copy()
             save_settings_file(DEFAULT_SETTINGS)
 
-            # 2. 🔑 Delete widget keys so widgets reload with default values
-            for key in [
-                "side_settings_detail",
-                "side_settings_temp",
-                "side_settings_tokens",
-                "main_detail_level",
-            ]:
-                if key in st.session_state:
-                    del st.session_state[key]
+            # 2. 🔑 Bump the version → new widget keys → fresh widget state
+            st.session_state.settings_version += 1
+
+            # 3. Also remove main page radio key so it re-inits
+            for k in list(st.session_state.keys()):
+                if k.startswith("main_detail_level"):
+                    del st.session_state[k]
 
             st.session_state.settings_reset_msg = True
             st.rerun()
@@ -779,13 +769,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# Main detail radio also uses version so reset propagates
+v = st.session_state.settings_version
 detail_level = st.radio(
     "Detail level",
     options=["Brief", "Standard", "Detailed"],
     index=["Brief", "Standard", "Detailed"].index(st.session_state.settings["detail_level"]),
     horizontal=True,
     label_visibility="collapsed",
-    key="main_detail_level"
+    key=f"main_detail_level_v{v}"
 )
 
 uploaded_file = st.file_uploader(
