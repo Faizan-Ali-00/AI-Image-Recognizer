@@ -5,153 +5,231 @@ import base64
 import io
 import os
 import re
+from datetime import datetime
 
 # ============================================================
 # PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
-    page_title="PixelSage",
-    page_icon="🧙",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    page_title="PixelSage — Image Analyzer",
+    page_icon="🔎",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ============================================================
-# CUSTOM CSS — Teal + Amber Theme
+# CSS — Clean, professional analyzer UI
 # ============================================================
 
 st.markdown("""
 <style>
-    /* Background */
+    /* Base */
     .stApp {
-        background:
-            radial-gradient(circle at 20% 0%, #0e7490 0%, transparent 45%),
-            radial-gradient(circle at 80% 100%, #f59e0b22 0%, transparent 50%),
-            linear-gradient(180deg, #042f2e 0%, #0f172a 100%);
+        background: #0b0f14;
     }
-    #MainMenu, footer, header {visibility: hidden;}
+    #MainMenu, footer {visibility: hidden;}
+    header[data-testid="stHeader"] {background: transparent;}
 
-    /* Hero title */
-    .sage-hero {
-        text-align: center;
-        padding: 3rem 1rem 1rem 1rem;
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background: #0f1419;
+        border-right: 1px solid #1f2937;
     }
-    .sage-icon {
-        font-size: 4rem;
-        line-height: 1;
-        filter: drop-shadow(0 0 20px #06b6d4aa);
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3 {
+        color: #e5e7eb;
+        font-weight: 600;
+        letter-spacing: -0.3px;
     }
-    .sage-title {
-        font-size: 3.2rem;
-        font-weight: 800;
-        letter-spacing: -1px;
-        background: linear-gradient(90deg, #06b6d4 0%, #fbbf24 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin: 0.3rem 0;
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] span,
+    section[data-testid="stSidebar"] li {
+        color: #9ca3af;
+        font-size: 0.9rem;
     }
-    .sage-tagline {
-        color: #94a3b8;
-        font-size: 1.05rem;
-        letter-spacing: 2px;
-        text-transform: uppercase;
+
+    /* Top bar */
+    .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.2rem 0 1.8rem 0;
+        border-bottom: 1px solid #1f2937;
         margin-bottom: 2rem;
     }
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+    }
+    .brand-text h1 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #f9fafb;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    .brand-text p {
+        font-size: 0.78rem;
+        color: #6b7280;
+        margin: 0;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.85rem;
+        background: #0f2a1f;
+        border: 1px solid #14532d;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        color: #4ade80;
+        font-weight: 500;
+    }
+    .status-dot {
+        width: 8px; height: 8px;
+        background: #4ade80;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #4ade80;
+    }
 
-    /* Upload card */
+    /* Section headers */
+    .section-label {
+        font-size: 0.72rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 600;
+        margin: 1.5rem 0 0.75rem 0;
+    }
+
+    /* Upload area */
     div[data-testid="stFileUploader"] {
-        background: rgba(6, 182, 212, 0.06);
-        border: 1.5px dashed #06b6d466;
-        border-radius: 18px;
+        background: #0f1419;
+        border: 1.5px dashed #1f2937;
+        border-radius: 14px;
         padding: 1rem;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
     }
     div[data-testid="stFileUploader"]:hover {
-        border-color: #fbbf24;
-        background: rgba(251, 191, 36, 0.05);
+        border-color: #3b82f6;
+        background: #101822;
     }
 
-    /* Buttons — pill style */
+    /* Buttons */
     .stButton > button {
-        background: linear-gradient(90deg, #06b6d4 0%, #0891b2 100%);
-        color: #042f2e;
+        background: #3b82f6;
+        color: #ffffff;
         border: none;
-        border-radius: 999px;
-        padding: 0.75rem 2rem;
-        font-weight: 700;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        transition: all 0.3s ease;
+        border-radius: 10px;
+        padding: 0.7rem 1.4rem;
+        font-weight: 600;
+        font-size: 0.92rem;
+        letter-spacing: 0.2px;
+        transition: all 0.15s ease;
         width: 100%;
-        box-shadow: 0 6px 20px rgba(6, 182, 212, 0.25);
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
     }
     .stButton > button:hover {
-        background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
-        color: #042f2e;
-        transform: translateY(-2px);
-        box-shadow: 0 10px 30px rgba(251, 191, 36, 0.4);
+        background: #2563eb;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(59, 130, 246, 0.4);
     }
 
     /* Result card */
-    .sage-result {
-        background: linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(251,191,36,0.06) 100%);
-        border: 1px solid rgba(6, 182, 212, 0.25);
-        border-left: 4px solid #06b6d4;
-        border-radius: 18px;
-        padding: 1.8rem 2rem;
-        margin: 1.5rem 0;
-        backdrop-filter: blur(12px);
-        font-size: 1.08rem;
-        line-height: 1.8;
-        color: #e2e8f0;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        position: relative;
-    }
-    .sage-result::before {
-        content: "🧙 PixelSage says:";
-        display: block;
-        font-size: 0.85rem;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        color: #06b6d4;
-        margin-bottom: 0.8rem;
-        font-weight: 700;
-    }
-
-    /* Divider */
-    hr { border-color: rgba(6, 182, 212, 0.15); margin: 1.5rem 0; }
-
-    /* Captions and text */
-    .stCaption, small { color: #64748b !important; }
-    p, span, div { color: #cbd5e1; }
-
-    /* Uploaded image frame */
-    div[data-testid="stImage"] img {
+    .result-card {
+        background: #0f1419;
+        border: 1px solid #1f2937;
         border-radius: 14px;
-        border: 1px solid rgba(6, 182, 212, 0.2);
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+        padding: 1.6rem 1.8rem;
+        margin-top: 1rem;
+        color: #e5e7eb;
+        font-size: 1rem;
+        line-height: 1.75;
+    }
+    .result-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #1f2937;
+        margin-bottom: 1.2rem;
+    }
+    .result-header-title {
+        font-size: 0.78rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 600;
+        margin: 0;
+    }
+    .result-meta {
+        font-size: 0.75rem;
+        color: #4b5563;
+    }
+
+    /* Stat cards */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+    .stat-card {
+        background: #0f1419;
+        border: 1px solid #1f2937;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+    }
+    .stat-label {
+        font-size: 0.7rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.3rem;
+    }
+    .stat-value {
+        font-size: 0.95rem;
+        color: #f9fafb;
+        font-weight: 600;
+    }
+
+    /* Text colors */
+    p, span, div, label { color: #d1d5db; }
+    .stCaption, small { color: #6b7280 !important; }
+
+    /* Image frame */
+    div[data-testid="stImage"] img {
+        border-radius: 12px;
+        border: 1px solid #1f2937;
     }
 
     /* Spinner */
-    .stSpinner > div { border-top-color: #06b6d4 !important; }
+    .stSpinner > div { border-top-color: #3b82f6 !important; }
 
     /* Alerts */
     .stAlert {
-        border-radius: 12px;
-        background: rgba(6, 182, 212, 0.08);
-        border: 1px solid rgba(6, 182, 212, 0.2);
+        border-radius: 10px;
+        background: #0f1419;
+        border: 1px solid #1f2937;
     }
 
-    /* Footer */
-    .sage-footer {
-        text-align: center;
-        padding: 2rem 0 1rem 0;
-        color: #64748b;
-        font-size: 0.85rem;
-        letter-spacing: 1px;
-    }
-    .sage-footer span { color: #06b6d4; }
+    /* Divider */
+    hr { border-color: #1f2937; margin: 1.5rem 0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -221,59 +299,147 @@ def clean_response(text):
     return cleaned.strip()
 
 # ============================================================
-# HERO HEADER
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+    st.markdown("## PixelSage")
+    st.markdown(
+        "<p style='font-size:0.8rem;color:#6b7280;margin-top:-0.5rem;'>"
+        "Image analysis engine</p>",
+        unsafe_allow_html=True
+    )
+
+    st.markdown("---")
+
+    st.markdown("### ⚙️ Settings")
+    detail_level = st.select_slider(
+        "Detail level",
+        options=["Brief", "Standard", "Detailed"],
+        value="Standard"
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 🔎 Detection")
+    st.markdown(
+        """
+        - People & actions
+        - Objects & items
+        - Background scenery
+        - Environment & setting
+        - Colors, shapes, materials
+        - Lighting & atmosphere
+        - Positions & layout
+        - Small visible details
+        """
+    )
+
+    st.markdown("---")
+
+    st.markdown("### ⚡ Engine")
+    st.markdown(f"**Model** · `{MODEL_NAME}`")
+    st.markdown(f"**Status** · Online")
+
+# ============================================================
+# TOP BAR
 # ============================================================
 
 st.markdown(
     """
-    <div class="sage-hero">
-        <div class="sage-icon">🧙</div>
-        <div class="sage-title">PixelSage</div>
-        <div class="sage-tagline">Snap it · See it · Understand it</div>
+    <div class="topbar">
+        <div class="brand">
+            <div class="brand-mark">🔎</div>
+            <div class="brand-text">
+                <h1>PixelSage</h1>
+                <p>Image Analyzer</p>
+            </div>
+        </div>
+        <div class="status-pill">
+            <span class="status-dot"></span> Engine Online
+        </div>
     </div>
     """,
     unsafe_allow_html=True
 )
 
 # ============================================================
-# UPLOAD IMAGE
+# MAIN LAYOUT — 2 columns
 # ============================================================
 
-uploaded_file = st.file_uploader(
-    "Drop an image here",
-    type=["jpg", "jpeg", "png", "webp"],
-    label_visibility="collapsed"
-)
+col_left, col_right = st.columns([1, 1], gap="large")
 
-# ============================================================
-# IMAGE ANALYSIS
-# ============================================================
+# ------------------------------------------------------------
+# LEFT: Upload + Preview
+# ------------------------------------------------------------
 
-if uploaded_file:
-    try:
-        image = Image.open(uploaded_file).convert("RGB")
-    except Exception:
-        st.error("The uploaded file is not a valid image.")
-        st.stop()
+with col_left:
+    st.markdown('<div class="section-label">01 · Source Image</div>', unsafe_allow_html=True)
 
-    # Display image centered
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col2:
-        st.image(image, use_container_width=True)
+    uploaded_file = st.file_uploader(
+        "Upload image",
+        type=["jpg", "jpeg", "png", "webp"],
+        label_visibility="collapsed"
+    )
 
-    st.markdown("")
+    if uploaded_file:
+        try:
+            image = Image.open(uploaded_file).convert("RGB")
+            st.image(image, use_container_width=True)
 
-    # Analyze button
-    if st.button("🔍  Reveal the Scene", use_container_width=True):
-        with st.spinner("PixelSage is reading the image..."):
-            try:
-                image.thumbnail((1024, 1024))
-                buffered = io.BytesIO()
-                image.save(buffered, format="JPEG", quality=85)
-                img_bytes = buffered.getvalue()
-                base64_image = base64.b64encode(img_bytes).decode("utf-8")
+            # Image stats
+            w, h = image.size
+            st.markdown(
+                f"""
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Width</div>
+                        <div class="stat-value">{w} px</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Height</div>
+                        <div class="stat-value">{h} px</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Mode</div>
+                        <div class="stat-value">{image.mode}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        except Exception:
+            st.error("Invalid image file.")
+            st.stop()
 
-                prompt = """Analyze the ENTIRE image carefully. Describe what you see in ONE coherent paragraph of about 80 to 150 words.
+# ------------------------------------------------------------
+# RIGHT: Analysis
+# ------------------------------------------------------------
+
+with col_right:
+    st.markdown('<div class="section-label">02 · Analysis Result</div>', unsafe_allow_html=True)
+
+    if uploaded_file:
+        if st.button("▶  Analyze Image", use_container_width=True):
+            with st.spinner("Analyzing image..."):
+                try:
+                    # Preprocess
+                    img_copy = image.copy()
+                    img_copy.thumbnail((1024, 1024))
+                    buffered = io.BytesIO()
+                    img_copy.save(buffered, format="JPEG", quality=88)
+                    img_bytes = buffered.getvalue()
+                    base64_image = base64.b64encode(img_bytes).decode("utf-8")
+
+                    # Detail level mapping
+                    detail_map = {
+                        "Brief": "60 to 80 words",
+                        "Standard": "100 to 150 words",
+                        "Detailed": "180 to 250 words"
+                    }
+                    target_len = detail_map.get(detail_level, "100 to 150 words")
+
+                    prompt = f"""Analyze the ENTIRE image carefully and describe what you see in ONE coherent paragraph of {target_len}.
 
 Cover in order:
 1. Foreground objects (closest to viewer)
@@ -289,55 +455,78 @@ RULES:
 - Describe only things actually visible.
 - Do not guess or invent.
 - Do not repeat information.
-- Do not copy these instructions.
 - Do not number your observations.
 - Do NOT show reasoning, thinking, or step-by-step analysis.
 - Do NOT use phrases like "Let me think", "Wait", "Looking closely".
 - Write ONE natural paragraph.
 - Respond ONLY with the final description."""
 
-                response = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    response = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}"
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=900,
-                    temperature=0.3
-                )
-
-                answer = response.choices[0].message.content
-                answer = clean_response(answer)
-
-                if not answer:
-                    st.warning("The model returned no description.")
-                else:
-                    st.markdown(
-                        f'<div class="sage-result">{answer}</div>',
-                        unsafe_allow_html=True
+                                ]
+                            }
+                        ],
+                        max_tokens=900,
+                        temperature=0.3
                     )
 
-            except Exception as e:
-                st.error("⚠️ PixelSage could not analyze the image.")
-                st.code(str(e))
+                    answer = response.choices[0].message.content
+                    answer = clean_response(answer)
+
+                    if not answer:
+                        st.warning("No description returned.")
+                    else:
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        st.markdown(
+                            f"""
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <div class="result-header-title">Description</div>
+                                    <div class="result-meta">{target_len} · {timestamp}</div>
+                                </div>
+                                {answer}
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+                        # Copy-friendly expander
+                        with st.expander("📋 View as plain text (copy)"):
+                            st.code(answer, language=None)
+
+                except Exception as e:
+                    st.error("Analysis failed.")
+                    st.code(str(e))
+    else:
+        st.markdown(
+            """
+            <div class="result-card" style="text-align:center;padding:3rem 2rem;color:#4b5563;">
+                <div style="font-size:2.5rem;margin-bottom:0.8rem;">🔎</div>
+                <div style="font-size:0.95rem;">Upload an image to begin analysis</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 # ============================================================
 # FOOTER
 # ============================================================
 
+st.markdown("---")
 st.markdown(
-    '<div class="sage-footer">'
-    '🧙 <span>PixelSage</span> · Snap it · See it · Understand it'
-    '</div>',
+    "<p style='text-align:center;color:#4b5563;font-size:0.8rem;'>"
+    "PixelSage · Image Analyzer · Snap it · See it · Understand it"
+    "</p>",
     unsafe_allow_html=True
 )
