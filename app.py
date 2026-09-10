@@ -5,7 +5,9 @@ import base64
 import io
 import os
 import re
+import json
 from datetime import datetime
+from pathlib import Path
 
 # ============================================================
 # PAGE CONFIG
@@ -42,6 +44,117 @@ LOGO_SVG = """
 LOGO_DATA_URI = "data:image/svg+xml;base64," + base64.b64encode(LOGO_SVG.encode("utf-8")).decode("utf-8")
 
 # ============================================================
+# HISTORY STORAGE
+# ============================================================
+
+HISTORY_FILE = Path("history.json")
+THUMBNAIL_DIR = Path("thumbnails")
+THUMBNAIL_DIR.mkdir(exist_ok=True)
+
+def load_history():
+    if not HISTORY_FILE.exists():
+        return []
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_history(history):
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        st.error(f"Could not save history: {e}")
+
+def save_thumbnail(image, entry_id):
+    """Save a thumbnail and return its path."""
+    try:
+        thumb = image.copy()
+        thumb.thumbnail((300, 300))
+        path = THUMBNAIL_DIR / f"{entry_id}.jpg"
+        thumb.save(path, format="JPEG", quality=80)
+        return str(path)
+    except Exception:
+        return ""
+
+def add_history_entry(image, description, detail_level, model_name):
+    entry_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    thumb_path = save_thumbnail(image, entry_id)
+    entry = {
+        "id": entry_id,
+        "timestamp": datetime.now().strftime("%b %d, %Y · %H:%M"),
+        "description": description,
+        "detail_level": detail_level,
+        "model": model_name,
+        "thumbnail": thumb_path,
+        "width": image.width,
+        "height": image.height
+    }
+    history = load_history()
+    history.insert(0, entry)  # newest first
+    # Keep only last 30
+    history = history[:30]
+    save_history(history)
+    return entry
+
+def delete_history_entry(entry_id):
+    history = load_history()
+    history = [h for h in history if h["id"] != entry_id]
+    save_history(history)
+    # Delete thumbnail
+    thumb_path = THUMBNAIL_DIR / f"{entry_id}.jpg"
+    if thumb_path.exists():
+        try:
+            thumb_path.unlink()
+        except Exception:
+            pass
+
+def clear_history():
+    history = load_history()
+    for entry in history:
+        thumb = Path(entry.get("thumbnail", ""))
+        if thumb.exists():
+            try:
+                thumb.unlink()
+            except Exception:
+                pass
+    save_history([])
+
+# ============================================================
+# SETTINGS STORAGE
+# ============================================================
+
+SETTINGS_FILE = Path("settings.json")
+
+DEFAULT_SETTINGS = {
+    "detail_level": "Standard",
+    "temperature": 0.4,
+    "max_tokens": 900,
+    "theme": "dark"
+}
+
+def load_settings():
+    if not SETTINGS_FILE.exists():
+        return DEFAULT_SETTINGS.copy()
+    try:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        # Merge with defaults
+        merged = DEFAULT_SETTINGS.copy()
+        merged.update(data)
+        return merged
+    except Exception:
+        return DEFAULT_SETTINGS.copy()
+
+def save_settings(settings):
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+    except Exception as e:
+        st.error(f"Could not save settings: {e}")
+
+# ============================================================
 # CSS
 # ============================================================
 
@@ -56,7 +169,7 @@ st.markdown("""
         max-width: 900px;
     }
 
-    /* ---------- Top nav ---------- */
+    /* Top nav */
     .app-nav {
         display: flex;
         align-items: center;
@@ -66,17 +179,14 @@ st.markdown("""
         border: 1px solid #1c1f26;
         border-radius: 14px;
         backdrop-filter: blur(20px);
-        margin-bottom: 2.5rem;
+        margin-bottom: 2rem;
     }
     .nav-left { display: flex; align-items: center; gap: 0.75rem; }
     .nav-logo {
         width: 36px; height: 36px;
         border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
         overflow: hidden;
+        box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
     }
     .nav-logo img { width: 36px; height: 36px; display: block; }
     .nav-brand {
@@ -116,23 +226,24 @@ st.markdown("""
         50% { opacity: 0.3; }
     }
 
-    /* ---------- Hero ---------- */
-    .page-hero { text-align: center; margin-bottom: 2.2rem; }
+    /* Hero */
+    .page-hero { text-align: center; margin-bottom: 1.8rem; }
     .hero-logo {
-        width: 72px;
-        height: 72px;
+        width: 68px;
+        height: 68px;
         border-radius: 18px;
-        margin: 0 auto 1.2rem auto;
+        margin: 0 auto 1rem auto;
         box-shadow: 0 10px 40px rgba(6, 182, 212, 0.35);
         animation: logoFloat 4s ease-in-out infinite;
+        overflow: hidden;
     }
-    .hero-logo img { width: 72px; height: 72px; display: block; border-radius: 18px; }
+    .hero-logo img { width: 68px; height: 68px; display: block; }
     @keyframes logoFloat {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-4px); }
     }
     .page-title {
-        font-size: 2.5rem;
+        font-size: 2.4rem;
         font-weight: 800;
         color: #f8fafc;
         letter-spacing: -1.2px;
@@ -145,12 +256,36 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
     }
     .page-sub {
-        font-size: 0.98rem;
+        font-size: 0.95rem;
         color: #94a3b8;
         margin: 0;
     }
 
-    /* ---------- Detail level segmented control ---------- */
+    /* Streamlit tabs (native) — restyle */
+    button[data-baseweb="tab"] {
+        background: transparent !important;
+        color: #64748b !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        padding: 0.6rem 1.1rem !important;
+        border-radius: 8px !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #f1f5f9 !important;
+        background: rgba(28, 31, 38, 0.9) !important;
+    }
+    div[data-baseweb="tab-list"] {
+        background: rgba(15, 17, 21, 0.6) !important;
+        border: 1px solid #1c1f26 !important;
+        border-radius: 12px !important;
+        padding: 0.3rem !important;
+        gap: 0.2rem !important;
+        justify-content: center;
+    }
+    div[data-baseweb="tab-highlight"] { display: none !important; }
+    div[data-baseweb="tab-border"] { display: none !important; }
+
+    /* Detail level segmented control */
     div[role="radiogroup"] {
         display: flex;
         justify-content: center;
@@ -179,7 +314,7 @@ st.markdown("""
     }
     div[role="radiogroup"] input {display: none;}
 
-    /* ---------- Drop zone ---------- */
+    /* Drop zone */
     div[data-testid="stFileUploader"] {
         background: transparent !important;
         border: none !important;
@@ -190,9 +325,9 @@ st.markdown("""
         background: #0f1115 !important;
         border: 2px dashed #2a2f3a !important;
         border-radius: 20px !important;
-        padding: 4rem 2rem !important;
+        padding: 3.5rem 2rem !important;
         transition: all 0.25s ease !important;
-        min-height: 340px !important;
+        min-height: 300px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -212,14 +347,8 @@ st.markdown("""
         color: #06b6d4;
         margin-bottom: 1rem;
     }
-    div[data-testid="stFileUploader"] section small {
-        color: #64748b;
-        font-size: 0.82rem;
-    }
-    div[data-testid="stFileUploader"] section span {
-        color: #e2e8f0;
-        font-weight: 600;
-    }
+    div[data-testid="stFileUploader"] section small { color: #64748b; font-size: 0.82rem; }
+    div[data-testid="stFileUploader"] section span { color: #e2e8f0; font-weight: 600; }
     div[data-testid="stFileUploader"] button {
         background: #1c1f26 !important;
         color: #e2e8f0 !important;
@@ -235,15 +364,15 @@ st.markdown("""
         color: #22d3ee !important;
     }
 
-    /* ---------- Buttons ---------- */
+    /* Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
         color: #ffffff;
         border: none;
         border-radius: 12px;
-        padding: 0.9rem 1.8rem;
+        padding: 0.85rem 1.6rem;
         font-weight: 700;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         letter-spacing: 0.3px;
         transition: all 0.2s ease;
         width: 100%;
@@ -255,14 +384,29 @@ st.markdown("""
         box-shadow: 0 8px 30px rgba(6, 182, 212, 0.55);
     }
 
-    /* ---------- Image preview ---------- */
+    /* Secondary buttons (inside history cards) */
+    .secondary-btn button {
+        background: #1c1f26 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #2a2f3a !important;
+        box-shadow: none !important;
+        padding: 0.5rem 1rem !important;
+        font-size: 0.8rem !important;
+    }
+    .secondary-btn button:hover {
+        border-color: #06b6d4 !important;
+        color: #22d3ee !important;
+        transform: none !important;
+    }
+
+    /* Image preview */
     div[data-testid="stImage"] img {
         border-radius: 16px;
         border: 1px solid #1c1f26;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
 
-    /* ---------- Result block ---------- */
+    /* Result block */
     .result-block {
         background: linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(16,185,129,0.03) 100%);
         border: 1px solid #1c1f26;
@@ -312,7 +456,7 @@ st.markdown("""
         letter-spacing: 0.1px;
     }
 
-    /* ---------- Chips ---------- */
+    /* Chips */
     .chips-row {
         display: flex;
         gap: 0.5rem;
@@ -334,7 +478,7 @@ st.markdown("""
     }
     .chip strong {color: #e2e8f0; font-weight: 600;}
 
-    /* ---------- Scanning ---------- */
+    /* Scanning */
     .scanning-block {
         padding: 2.5rem;
         background: rgba(6, 182, 212, 0.04);
@@ -374,25 +518,101 @@ st.markdown("""
         margin-top: 1rem;
     }
 
-    /* ---------- Empty state ---------- */
-    .empty-state {
-        text-align: center;
-        padding: 3rem 2rem;
+    /* History card */
+    .history-card {
+        background: rgba(15, 17, 21, 0.7);
+        border: 1px solid #1c1f26;
+        border-radius: 14px;
+        padding: 1rem;
+        margin-bottom: 0.9rem;
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        transition: all 0.2s ease;
     }
-    .empty-title {
-        font-size: 0.95rem;
-        color: #475569;
-        font-weight: 500;
+    .history-card:hover {
+        border-color: #2a2f3a;
+        background: rgba(15, 17, 21, 0.9);
+    }
+    .history-thumb {
+        width: 80px;
+        height: 80px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 1px solid #1c1f26;
+        flex-shrink: 0;
+    }
+    .history-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        flex: 1;
+        min-width: 0;
+    }
+    .history-time {
+        font-size: 0.72rem;
+        color: #64748b;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+    .history-tags {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+    .history-tag {
+        padding: 0.15rem 0.5rem;
+        background: rgba(6, 182, 212, 0.1);
+        border: 1px solid rgba(6, 182, 212, 0.25);
+        border-radius: 6px;
+        font-size: 0.68rem;
+        color: #67e8f9;
+        font-weight: 600;
+    }
+    .history-text {
+        font-size: 0.88rem;
+        color: #cbd5e1;
+        line-height: 1.55;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
-    /* ---------- Text ---------- */
+    /* Empty */
+    .empty-state { text-align: center; padding: 3rem 2rem; }
+    .empty-title { font-size: 0.95rem; color: #475569; font-weight: 500; }
+    .empty-icon {
+        font-size: 2.5rem;
+        opacity: 0.4;
+        margin-bottom: 0.8rem;
+    }
+
+    /* Settings sections */
+    .settings-section {
+        background: rgba(15, 17, 21, 0.7);
+        border: 1px solid #1c1f26;
+        border-radius: 14px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .settings-title {
+        font-size: 0.72rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    /* Text */
     p, span, div, label { color: #cbd5e1; }
     .stCaption, small { color: #64748b !important; }
 
-    /* ---------- Spinner ---------- */
+    /* Spinner */
     .stSpinner > div { border-top-color: #06b6d4 !important; }
 
-    /* ---------- Alerts ---------- */
+    /* Alerts */
     .stAlert {
         border-radius: 12px;
         background: rgba(15, 17, 21, 0.8);
@@ -401,7 +621,7 @@ st.markdown("""
 
     hr { border-color: #1c1f26; margin: 2rem 0; }
 
-    /* ---------- Footer ---------- */
+    /* Footer */
     .app-footer {
         display: flex;
         align-items: center;
@@ -414,6 +634,11 @@ st.markdown("""
     }
     .app-footer img { width: 16px; height: 16px; border-radius: 4px; opacity: 0.8; }
     .app-footer strong {color: #64748b;}
+
+    /* Slider */
+    div[data-testid="stSlider"] > div > div > div > div {
+        background: linear-gradient(90deg, #06b6d4 0%, #10b981 100%) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -444,6 +669,13 @@ def get_client():
 client = get_client()
 
 # ============================================================
+# SETTINGS INIT
+# ============================================================
+
+if "settings" not in st.session_state:
+    st.session_state.settings = load_settings()
+
+# ============================================================
 # CLEAN RESPONSE
 # ============================================================
 
@@ -456,7 +688,7 @@ def clean_response(text):
     return cleaned.strip()
 
 # ============================================================
-# APP NAV (with logo)
+# APP NAV
 # ============================================================
 
 st.markdown(
@@ -480,7 +712,7 @@ st.markdown(
 )
 
 # ============================================================
-# HERO (with logo)
+# HERO
 # ============================================================
 
 st.markdown(
@@ -497,83 +729,98 @@ st.markdown(
 )
 
 # ============================================================
-# DETAIL LEVEL
+# TABS — Analyze / History / Settings
 # ============================================================
 
-detail_level = st.radio(
-    "Detail level",
-    options=["Brief", "Standard", "Detailed"],
-    index=1,
-    horizontal=True,
-    label_visibility="collapsed"
-)
+tab_analyze, tab_history, tab_settings = st.tabs([
+    "📸  Analyze",
+    "📚  History",
+    "⚙️  Settings"
+])
 
 # ============================================================
-# UPLOAD / PREVIEW / RESULT
+# TAB 1 — ANALYZE
 # ============================================================
 
-uploaded_file = st.file_uploader(
-    "Upload image",
-    type=["jpg", "jpeg", "png", "webp"],
-    label_visibility="collapsed"
-)
-
-if uploaded_file:
-    try:
-        image = Image.open(uploaded_file).convert("RGB")
-    except Exception:
-        st.error("Invalid image file.")
-        st.stop()
-
-    st.markdown("")
-    st.image(image, use_container_width=True)
-
-    w, h = image.size
-    file_size = len(uploaded_file.getvalue()) / 1024
-    st.markdown(
-        f"""
-        <div class="chips-row">
-            <div class="chip">📐 <strong>{w} × {h}</strong></div>
-            <div class="chip">🎨 <strong>{image.mode}</strong></div>
-            <div class="chip">💾 <strong>{file_size:.0f} KB</strong></div>
-            <div class="chip">⚙️ <strong>{detail_level}</strong></div>
-        </div>
-        """,
-        unsafe_allow_html=True
+with tab_analyze:
+    # Detail level from settings
+    detail_level = st.radio(
+        "Detail level",
+        options=["Brief", "Standard", "Detailed"],
+        index=["Brief", "Standard", "Detailed"].index(st.session_state.settings["detail_level"]),
+        horizontal=True,
+        label_visibility="collapsed",
+        key="analyze_detail_level"
     )
 
-    st.markdown("")
+    # Sync back to settings
+    if detail_level != st.session_state.settings["detail_level"]:
+        st.session_state.settings["detail_level"] = detail_level
+        save_settings(st.session_state.settings)
 
-    analyze_clicked = st.button("🔍  Analyze Image", use_container_width=True)
+    uploaded_file = st.file_uploader(
+        "Upload image",
+        type=["jpg", "jpeg", "png", "webp"],
+        label_visibility="collapsed",
+        key="analyze_upload"
+    )
 
-    if analyze_clicked:
-        scan_placeholder = st.empty()
-        scan_placeholder.markdown(
-            """
-            <div class="scanning-block">
-                <div class="icon">📸</div>
-                <div class="label">Analyzing image</div>
+    if uploaded_file:
+        try:
+            image = Image.open(uploaded_file).convert("RGB")
+        except Exception:
+            st.error("Invalid image file.")
+            st.stop()
+
+        st.markdown("")
+        st.image(image, use_container_width=True)
+
+        w, h = image.size
+        file_size = len(uploaded_file.getvalue()) / 1024
+        st.markdown(
+            f"""
+            <div class="chips-row">
+                <div class="chip">📐 <strong>{w} × {h}</strong></div>
+                <div class="chip">🎨 <strong>{image.mode}</strong></div>
+                <div class="chip">💾 <strong>{file_size:.0f} KB</strong></div>
+                <div class="chip">⚙️ <strong>{detail_level}</strong></div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        try:
-            img_copy = image.copy()
-            img_copy.thumbnail((1024, 1024))
-            buffered = io.BytesIO()
-            img_copy.save(buffered, format="JPEG", quality=88)
-            img_bytes = buffered.getvalue()
-            base64_image = base64.b64encode(img_bytes).decode("utf-8")
+        st.markdown("")
 
-            detail_map = {
-                "Brief": "60 to 80 words",
-                "Standard": "100 to 150 words",
-                "Detailed": "180 to 250 words"
-            }
-            target_len = detail_map.get(detail_level, "100 to 150 words")
+        analyze_clicked = st.button("🔍  Analyze Image", use_container_width=True, key="analyze_btn")
 
-            system_prompt = """You are a professional image analyst. Write descriptions as ONE continuous, natural paragraph — like a human expert describing a photo out loud.
+        if analyze_clicked:
+            scan_placeholder = st.empty()
+            scan_placeholder.markdown(
+                """
+                <div class="scanning-block">
+                    <div class="icon">📸</div>
+                    <div class="label">Analyzing image</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            try:
+                img_copy = image.copy()
+                img_copy.thumbnail((1024, 1024))
+                buffered = io.BytesIO()
+                img_copy.save(buffered, format="JPEG", quality=88)
+                img_bytes = buffered.getvalue()
+                base64_image = base64.b64encode(img_bytes).decode("utf-8")
+
+                detail_map = {
+                    "Brief": "60 to 80 words",
+                    "Standard": "100 to 150 words",
+                    "Detailed": "180 to 250 words"
+                }
+                target_len = detail_map.get(detail_level, "100 to 150 words")
+
+                system_prompt = """You are a professional image analyst. Write descriptions as ONE continuous, natural paragraph — like a human expert describing a photo out loud.
 
 RULES:
 - Write in ONE flowing paragraph. No bullets, no numbered lists.
@@ -583,73 +830,266 @@ RULES:
 - Flow: foreground → middle ground → background → edges/corners → people → environment → colors/shapes/materials/lighting → positions.
 - Weave small details naturally. Sound confident and clear."""
 
-            user_prompt = f"""Describe this image in {target_len}. One smooth paragraph. Only the final description."""
+                user_prompt = f"""Describe this image in {target_len}. One smooth paragraph. Only the final description."""
 
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": user_prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                response = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": user_prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    }
                                 }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=900,
-                temperature=0.4
+                            ]
+                        }
+                    ],
+                    max_tokens=st.session_state.settings["max_tokens"],
+                    temperature=st.session_state.settings["temperature"]
+                )
+
+                answer = response.choices[0].message.content
+                answer = clean_response(answer)
+
+                scan_placeholder.empty()
+
+                if not answer:
+                    st.warning("No description returned.")
+                else:
+                    timestamp = datetime.now().strftime("%H:%M")
+                    st.markdown(
+                        f"""
+                        <div class="result-block">
+                            <div class="result-top">
+                                <div class="result-label">
+                                    <span class="result-label-dot"></span> Description · {detail_level}
+                                </div>
+                                <div class="result-time">{timestamp}</div>
+                            </div>
+                            <div class="result-text">{answer}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    with st.expander("📋 Copy as plain text"):
+                        st.code(answer, language=None)
+
+                    # Save to history
+                    add_history_entry(image, answer, detail_level, MODEL_NAME)
+                    st.success("✅ Saved to history")
+
+            except Exception as e:
+                scan_placeholder.empty()
+                st.error("⚠️ Analysis failed.")
+                st.code(str(e))
+
+    else:
+        st.markdown(
+            """
+            <div class="empty-state">
+                <div class="empty-title">Upload an image above to get started</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+# ============================================================
+# TAB 2 — HISTORY
+# ============================================================
+
+with tab_history:
+    history = load_history()
+
+    if not history:
+        st.markdown(
+            """
+            <div class="empty-state">
+                <div class="empty-icon">📚</div>
+                <div class="empty-title">No analyses yet</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        # Header with count + clear button
+        col_a, col_b = st.columns([3, 1])
+        with col_a:
+            st.markdown(
+                f"<p style='color:#94a3b8;font-size:0.85rem;margin-top:0.5rem;'>"
+                f"<strong style='color:#e2e8f0;'>{len(history)}</strong> saved analysis"
+                f"{'es' if len(history) != 1 else ''}</p>",
+                unsafe_allow_html=True
             )
+        with col_b:
+            with st.container():
+                st.markdown('<div class="secondary-btn">', unsafe_allow_html=True)
+                if st.button("🗑️ Clear All", key="clear_all", use_container_width=True):
+                    clear_history()
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
-            answer = response.choices[0].message.content
-            answer = clean_response(answer)
+        st.markdown("")
 
-            scan_placeholder.empty()
+        # List entries
+        for entry in history:
+            thumb_path = entry.get("thumbnail", "")
+            thumb_exists = Path(thumb_path).exists()
 
-            if not answer:
-                st.warning("No description returned.")
-            else:
-                timestamp = datetime.now().strftime("%H:%M")
+            col_thumb, col_info, col_actions = st.columns([1, 4, 1])
+
+            with col_thumb:
+                if thumb_exists:
+                    st.image(thumb_path, use_container_width=True)
+                else:
+                    st.markdown(
+                        "<div style='width:80px;height:80px;background:#1c1f26;"
+                        "border-radius:10px;display:flex;align-items:center;"
+                        "justify-content:center;color:#475569;'>🖼️</div>",
+                        unsafe_allow_html=True
+                    )
+
+            with col_info:
                 st.markdown(
                     f"""
-                    <div class="result-block">
-                        <div class="result-top">
-                            <div class="result-label">
-                                <span class="result-label-dot"></span> Description · {detail_level}
-                            </div>
-                            <div class="result-time">{timestamp}</div>
+                    <div style="padding-top:0.3rem;">
+                        <div class="history-time">🕐 {entry['timestamp']}</div>
+                        <div class="history-tags" style="margin-top:0.5rem;">
+                            <span class="history-tag">{entry['detail_level']}</span>
+                            <span class="history-tag">{entry['width']} × {entry['height']}</span>
                         </div>
-                        <div class="result-text">{answer}</div>
+                        <div class="history-text" style="margin-top:0.6rem;">{entry['description']}</div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
-                with st.expander("📋 Copy as plain text"):
-                    st.code(answer, language=None)
+            with col_actions:
+                with st.container():
+                    st.markdown('<div class="secondary-btn">', unsafe_allow_html=True)
 
-        except Exception as e:
-            scan_placeholder.empty()
-            st.error("⚠️ Analysis failed.")
-            st.code(str(e))
+                    with st.expander("👁️ View"):
+                        st.markdown(
+                            f"<div style='font-size:0.9rem;color:#cbd5e1;"
+                            f"line-height:1.7;'>{entry['description']}</div>",
+                            unsafe_allow_html=True
+                        )
+                        st.code(entry['description'], language=None)
 
-else:
+                    if st.button("🗑️", key=f"del_{entry['id']}", use_container_width=True):
+                        delete_history_entry(entry['id'])
+                        st.rerun()
+
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown("---")
+
+# ============================================================
+# TAB 3 — SETTINGS
+# ============================================================
+
+with tab_settings:
     st.markdown(
-        """
-        <div class="empty-state">
-            <div class="empty-title">Upload an image above to get started</div>
-        </div>
-        """,
+        '<div class="settings-title">⚙️ Analysis Preferences</div>',
         unsafe_allow_html=True
     )
 
+    settings = st.session_state.settings
+
+    # Detail level
+    st.markdown("**Default detail level**")
+    new_detail = st.radio(
+        "Default detail level",
+        options=["Brief", "Standard", "Detailed"],
+        index=["Brief", "Standard", "Detailed"].index(settings["detail_level"]),
+        horizontal=True,
+        label_visibility="collapsed",
+        key="settings_detail"
+    )
+
+    st.markdown("")
+
+    # Temperature
+    st.markdown("**Creativity (temperature)**")
+    st.caption("Lower = more focused and accurate. Higher = more creative and varied.")
+    new_temp = st.slider(
+        "Temperature",
+        min_value=0.0,
+        max_value=1.0,
+        value=float(settings["temperature"]),
+        step=0.05,
+        label_visibility="collapsed",
+        key="settings_temp"
+    )
+    st.caption(f"Current: **{new_temp}**")
+
+    st.markdown("")
+
+    # Max tokens
+    st.markdown("**Maximum response length**")
+    st.caption("Higher = longer, more detailed output.")
+    new_tokens = st.slider(
+        "Max tokens",
+        min_value=300,
+        max_value=2000,
+        value=int(settings["max_tokens"]),
+        step=100,
+        label_visibility="collapsed",
+        key="settings_tokens"
+    )
+    st.caption(f"Current: **{new_tokens}** tokens")
+
+    st.markdown("")
+
+    # Save button
+    if st.button("💾  Save Settings", use_container_width=True, key="save_settings"):
+        st.session_state.settings["detail_level"] = new_detail
+        st.session_state.settings["temperature"] = new_temp
+        st.session_state.settings["max_tokens"] = new_tokens
+        save_settings(st.session_state.settings)
+        st.success("✅ Settings saved")
+        st.rerun()
+
+    st.markdown("---")
+
+    # Reset
+    st.markdown(
+        '<div class="settings-title">🔄 Reset</div>',
+        unsafe_allow_html=True
+    )
+
+    if st.button("↺  Reset to Defaults", use_container_width=True, key="reset_settings"):
+        st.session_state.settings = DEFAULT_SETTINGS.copy()
+        save_settings(st.session_state.settings)
+        st.success("✅ Reset to defaults")
+        st.rerun()
+
+    st.markdown("---")
+
+    # About / Info
+    st.markdown(
+        '<div class="settings-title">ℹ️ About</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        f"""
+        **PixelSage** — Image Analysis Studio
+
+        - **Model:** `{MODEL_NAME}`
+        - **Engine:** Groq API
+        - **History:** Last 30 analyses
+        - **Storage:** Local JSON files
+        """
+    )
+
 # ============================================================
-# FOOTER (with mini logo)
+# FOOTER
 # ============================================================
 
 st.markdown(
