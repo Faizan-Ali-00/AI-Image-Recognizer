@@ -13,63 +13,145 @@ import re
 st.set_page_config(
     page_title="PixelSage",
     page_icon="🧙",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # ============================================================
-# CUSTOM CSS
+# CUSTOM CSS — Teal + Amber Theme
 # ============================================================
 
 st.markdown("""
 <style>
-    .stApp { background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header[data-testid="stHeader"] {background: transparent;}
+    /* Background */
+    .stApp {
+        background:
+            radial-gradient(circle at 20% 0%, #0e7490 0%, transparent 45%),
+            radial-gradient(circle at 80% 100%, #f59e0b22 0%, transparent 50%),
+            linear-gradient(180deg, #042f2e 0%, #0f172a 100%);
+    }
+    #MainMenu, footer, header {visibility: hidden;}
 
-    .main-title {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    /* Hero title */
+    .sage-hero {
+        text-align: center;
+        padding: 3rem 1rem 1rem 1rem;
+    }
+    .sage-icon {
+        font-size: 4rem;
+        line-height: 1;
+        filter: drop-shadow(0 0 20px #06b6d4aa);
+    }
+    .sage-title {
+        font-size: 3.2rem;
+        font-weight: 800;
+        letter-spacing: -1px;
+        background: linear-gradient(90deg, #06b6d4 0%, #fbbf24 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 3rem; font-weight: 800; text-align: center;
-        padding: 1rem 0 0.5rem 0; margin-bottom: 0;
+        margin: 0.3rem 0;
     }
-    .subtitle { text-align: center; color: #a0a0b0; font-size: 1.1rem; margin-bottom: 2rem; }
-
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-        display: block !important;
+    .sage-tagline {
+        color: #94a3b8;
+        font-size: 1.05rem;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 2rem;
     }
-    section[data-testid="stSidebar"] h2 { color: #667eea; }
 
+    /* Upload card */
+    div[data-testid="stFileUploader"] {
+        background: rgba(6, 182, 212, 0.06);
+        border: 1.5px dashed #06b6d466;
+        border-radius: 18px;
+        padding: 1rem;
+        transition: all 0.3s ease;
+    }
+    div[data-testid="stFileUploader"]:hover {
+        border-color: #fbbf24;
+        background: rgba(251, 191, 36, 0.05);
+    }
+
+    /* Buttons — pill style */
     .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white; border: none; border-radius: 10px;
-        padding: 0.5rem 1rem; font-weight: 600;
-        transition: all 0.3s ease; width: 100%;
+        background: linear-gradient(90deg, #06b6d4 0%, #0891b2 100%);
+        color: #042f2e;
+        border: none;
+        border-radius: 999px;
+        padding: 0.75rem 2rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        transition: all 0.3s ease;
+        width: 100%;
+        box-shadow: 0 6px 20px rgba(6, 182, 212, 0.25);
     }
     .stButton > button:hover {
+        background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+        color: #042f2e;
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 10px 30px rgba(251, 191, 36, 0.4);
     }
 
-    .description-box {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(102, 126, 234, 0.3);
-        border-left: 4px solid #667eea;
-        border-radius: 15px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        font-size: 1.05rem;
-        line-height: 1.7;
+    /* Result card */
+    .sage-result {
+        background: linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(251,191,36,0.06) 100%);
+        border: 1px solid rgba(6, 182, 212, 0.25);
+        border-left: 4px solid #06b6d4;
+        border-radius: 18px;
+        padding: 1.8rem 2rem;
+        margin: 1.5rem 0;
+        backdrop-filter: blur(12px);
+        font-size: 1.08rem;
+        line-height: 1.8;
+        color: #e2e8f0;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        position: relative;
+    }
+    .sage-result::before {
+        content: "🧙 PixelSage says:";
+        display: block;
+        font-size: 0.85rem;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #06b6d4;
+        margin-bottom: 0.8rem;
+        font-weight: 700;
     }
 
-    .stAlert { border-radius: 10px; background: rgba(255, 255, 255, 0.05); }
-    p, h1, h2, h3, h4, h5, h6, span, div { color: #e0e0e8; }
+    /* Divider */
+    hr { border-color: rgba(6, 182, 212, 0.15); margin: 1.5rem 0; }
+
+    /* Captions and text */
+    .stCaption, small { color: #64748b !important; }
+    p, span, div { color: #cbd5e1; }
+
+    /* Uploaded image frame */
+    div[data-testid="stImage"] img {
+        border-radius: 14px;
+        border: 1px solid rgba(6, 182, 212, 0.2);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Spinner */
+    .stSpinner > div { border-top-color: #06b6d4 !important; }
+
+    /* Alerts */
+    .stAlert {
+        border-radius: 12px;
+        background: rgba(6, 182, 212, 0.08);
+        border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    /* Footer */
+    .sage-footer {
+        text-align: center;
+        padding: 2rem 0 1rem 0;
+        color: #64748b;
+        font-size: 0.85rem;
+        letter-spacing: 1px;
+    }
+    .sage-footer span { color: #06b6d4; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,12 +204,8 @@ META_STARTERS = [
 def clean_response(text):
     if not text:
         return ""
-
-    # Remove  thinking... blocks
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
     cleaned = re.sub(r"</?think>", "", cleaned)
-
-    # Remove meta reasoning lines
     lines = cleaned.split("\n")
     filtered = []
     for line in lines:
@@ -136,61 +214,35 @@ def clean_response(text):
             continue
         filtered.append(line)
     cleaned = "\n".join(filtered)
-
-    # Fallback: if everything was stripped, use last paragraph
     if not cleaned.strip() and text:
         parts = text.strip().split("\n\n")
         cleaned = parts[-1] if parts else ""
-
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
 
 # ============================================================
-# HEADER
+# HERO HEADER
 # ============================================================
 
-st.markdown('<h1 class="main-title">🧙 PixelSage</h1>', unsafe_allow_html=True)
 st.markdown(
-    '<p class="subtitle">Snap it. See it. Understand it.</p>',
+    """
+    <div class="sage-hero">
+        <div class="sage-icon">🧙</div>
+        <div class="sage-title">PixelSage</div>
+        <div class="sage-tagline">Snap it · See it · Understand it</div>
+    </div>
+    """,
     unsafe_allow_html=True
 )
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-with st.sidebar:
-    st.markdown("## ℹ️ About PixelSage")
-    st.markdown(
-        "PixelSage uses a powerful vision-language model to "
-        "understand and describe uploaded images in natural language."
-    )
-
-    st.markdown("### 🔍 What it detects")
-    st.markdown(
-        """
-        - 👤 People & actions
-        - 📦 Main objects
-        - 🌄 Background & scenery
-        - 📍 Object positions
-        - 🏞️ Environment & setting
-        - 🎨 Colors, shapes, materials
-        - 💡 Lighting & atmosphere
-        - 🔎 Small visible details
-        """
-    )
-
-    st.markdown("---")
-    st.markdown("### ⚡ Powered by")
-    st.markdown(f"**Model:** `{MODEL_NAME}`")
 
 # ============================================================
 # UPLOAD IMAGE
 # ============================================================
 
 uploaded_file = st.file_uploader(
-    "📤 Upload an image",
-    type=["jpg", "jpeg", "png", "webp"]
+    "Drop an image here",
+    type=["jpg", "jpeg", "png", "webp"],
+    label_visibility="collapsed"
 )
 
 # ============================================================
@@ -204,32 +256,24 @@ if uploaded_file:
         st.error("The uploaded file is not a valid image.")
         st.stop()
 
-    col1, col2 = st.columns([1, 1])
-
-    with col1:
-        st.image(image, caption="Uploaded Image", use_container_width=True)
-
+    # Display image centered
+    col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
-        st.markdown("### 🧠 Analysis")
-        st.markdown(
-            "Click **Analyze Image** below to generate a description "
-            "of the entire scene."
-        )
+        st.image(image, use_container_width=True)
 
-        if st.button("🔍 Analyze Image", use_container_width=True):
-            with st.spinner("PixelSage is analyzing the image..."):
-                try:
-                    # Resize for API (max 1024px)
-                    image.thumbnail((1024, 1024))
+    st.markdown("")
 
-                    # Convert to base64
-                    buffered = io.BytesIO()
-                    image.save(buffered, format="JPEG", quality=85)
-                    img_bytes = buffered.getvalue()
-                    base64_image = base64.b64encode(img_bytes).decode("utf-8")
+    # Analyze button
+    if st.button("🔍  Reveal the Scene", use_container_width=True):
+        with st.spinner("PixelSage is reading the image..."):
+            try:
+                image.thumbnail((1024, 1024))
+                buffered = io.BytesIO()
+                image.save(buffered, format="JPEG", quality=85)
+                img_bytes = buffered.getvalue()
+                base64_image = base64.b64encode(img_bytes).decode("utf-8")
 
-                    # Vision prompt
-                    prompt = """Analyze the ENTIRE image carefully. Describe what you see in ONE coherent paragraph of about 80 to 150 words.
+                prompt = """Analyze the ENTIRE image carefully. Describe what you see in ONE coherent paragraph of about 80 to 150 words.
 
 Cover in order:
 1. Foreground objects (closest to viewer)
@@ -252,50 +296,48 @@ RULES:
 - Write ONE natural paragraph.
 - Respond ONLY with the final description."""
 
-                    # Groq API call with vision
-                    response = client.chat.completions.create(
-                        model=MODEL_NAME,
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": prompt},
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {
-                                            "url": f"data:image/jpeg;base64,{base64_image}"
-                                        }
+                response = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
                                     }
-                                ]
-                            }
-                        ],
-                        max_tokens=500,
-                        temperature=0.3
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=900,
+                    temperature=0.3
+                )
+
+                answer = response.choices[0].message.content
+                answer = clean_response(answer)
+
+                if not answer:
+                    st.warning("The model returned no description.")
+                else:
+                    st.markdown(
+                        f'<div class="sage-result">{answer}</div>',
+                        unsafe_allow_html=True
                     )
 
-                    answer = response.choices[0].message.content
-                    answer = clean_response(answer)
-
-                    if not answer:
-                        st.warning("The model returned no description.")
-                    else:
-                        st.markdown(
-                            f'<div class="description-box">{answer}</div>',
-                            unsafe_allow_html=True
-                        )
-
-                except Exception as e:
-                    st.error("⚠️ PixelSage could not analyze the image.")
-                    st.code(str(e))
+            except Exception as e:
+                st.error("⚠️ PixelSage could not analyze the image.")
+                st.code(str(e))
 
 # ============================================================
 # FOOTER
 # ============================================================
 
-st.markdown("---")
 st.markdown(
-    '<p style="text-align:center; color:#667eea; font-size:0.85rem;">'
-    '🧙 PixelSage · Snap it. See it. Understand it.'
-    '</p>',
+    '<div class="sage-footer">'
+    '🧙 <span>PixelSage</span> · Snap it · See it · Understand it'
+    '</div>',
     unsafe_allow_html=True
 )
