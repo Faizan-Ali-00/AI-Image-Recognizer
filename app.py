@@ -12,7 +12,7 @@ from pathlib import Path
 # --- Provider SDKs ---
 from google import genai
 from google.genai import types
-from mistralai import Mistral
+from mistralai.client import Mistral
 
 # ============================================================
 # PAGE CONFIG
