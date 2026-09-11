@@ -1,4 +1,6 @@
 streamlit
-groq
+google-genai
+mistralai
+pillow
+python-dotenv
 requests
-beautifulsoup4
