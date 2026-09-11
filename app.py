@@ -1,13 +1,18 @@
 import streamlit as st
-from groq import Groq
 from PIL import Image
 import base64
 import io
 import os
 import re
 import json
+import requests
 from datetime import datetime
 from pathlib import Path
+
+# --- Provider SDKs ---
+from google import genai
+from google.genai import types
+from mistralai import Mistral
 
 # ============================================================
 # PAGE CONFIG
@@ -158,11 +163,171 @@ if "settings_saved_msg" not in st.session_state:
     st.session_state.settings_saved_msg = False
 if "settings_reset_msg" not in st.session_state:
     st.session_state.settings_reset_msg = False
-
-# 🔑 KEY FIX: A counter that changes when reset is pressed.
-# Changing the counter changes the widget keys, forcing fresh re-init.
 if "settings_version" not in st.session_state:
     st.session_state.settings_version = 0
+
+# ============================================================
+# API KEYS
+# ============================================================
+
+def _get_secret(name):
+    try:
+        return st.secrets[name]
+    except Exception:
+        return os.getenv(name)
+
+GEMINI_API_KEY = _get_secret("GEMINI_API_KEY")
+MISTRAL_API_KEY = _get_secret("MISTRAL_API_KEY")
+DEEPSEEK_API_KEY = _get_secret("DEEPSEEK_API_KEY")
+OPENROUTER_API_KEY = _get_secret("OPENROUTER_API_KEY")
+
+if not any([GEMINI_API_KEY, MISTRAL_API_KEY, DEEPSEEK_API_KEY, OPENROUTER_API_KEY]):
+    st.error("🔑 **No AI provider keys found.**")
+    st.info(
+        "Add at least one to Streamlit Secrets:\n\n"
+        "```toml\n"
+        "GEMINI_API_KEY = \"AIza...\"\n"
+        "MISTRAL_API_KEY = \"...\"\n"
+        "DEEPSEEK_API_KEY = \"sk-...\"\n"
+        "OPENROUTER_API_KEY = \"sk-or-v1-...\"\n"
+        "```"
+    )
+    st.stop()
+
+# ============================================================
+# PROVIDERS — multi-model vision fallback
+# ============================================================
+
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+mistral_client = Mistral(api_key=MISTRAL_API_KEY) if MISTRAL_API_KEY else None
+
+
+def _vision_gemini(image_bytes, prompt, max_tokens, temperature):
+    """Gemini 2.5 Flash — multimodal vision."""
+    response = gemini_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[
+            prompt,
+            types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+        ],
+    )
+    return response.text
+
+
+def _vision_mistral(image_bytes, prompt, max_tokens, temperature):
+    """Mistral Pixtral — vision model."""
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    response = mistral_client.chat.complete(
+        model="pixtral-12b-2409",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": f"data:image/jpeg;base64,{b64}",
+                    },
+                ],
+            }
+        ],
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    return response.choices[0].message.content
+
+
+def _vision_deepseek(image_bytes, prompt, max_tokens, temperature):
+    """DeepSeek — via OpenAI-compatible API."""
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    resp = requests.post(
+        "https://api.deepseek.com/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "deepseek-chat",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{b64}"
+                            },
+                        },
+                    ],
+                }
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        },
+        timeout=90,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
+def _vision_openrouter(image_bytes, prompt, max_tokens, temperature):
+    """OpenRouter multimodal fallback."""
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    resp = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "qwen/qwen-2.5-vl-7b-instruct:free",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{b64}"
+                            },
+                        },
+                    ],
+                }
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        },
+        timeout=90,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
+def analyze_with_fallback(image_bytes, prompt, max_tokens, temperature):
+    """Try each vision provider in order until one succeeds."""
+    providers = []
+    if gemini_client:
+        providers.append(("Gemini Vision", _vision_gemini))
+    if mistral_client:
+        providers.append(("Pixtral (Mistral)", _vision_mistral))
+    if DEEPSEEK_API_KEY:
+        providers.append(("DeepSeek", _vision_deepseek))
+    if OPENROUTER_API_KEY:
+        providers.append(("OpenRouter", _vision_openrouter))
+
+    last_error = None
+    for name, func in providers:
+        try:
+            result = func(image_bytes, prompt, max_tokens, temperature)
+            if result and result.strip():
+                return result, name
+        except Exception as e:
+            last_error = f"{name}: {e}"
+            continue
+
+    raise Exception(f"All vision providers failed. Last error: {last_error}")
 
 # ============================================================
 # CSS
@@ -481,28 +646,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================================
-# API KEY
-# ============================================================
-
-try:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-except Exception:
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-if not GROQ_API_KEY:
-    st.error("🔑 **Groq API key not found.**")
-    st.info("Add `GROQ_API_KEY` to `.env` or Streamlit Secrets.")
-    st.stop()
-
-MODEL_NAME = "qwen/qwen3.6-27b"
-
-@st.cache_resource
-def get_client():
-    return Groq(api_key=GROQ_API_KEY)
-
-client = get_client()
-
-# ============================================================
 # CLEAN RESPONSE
 # ============================================================
 
@@ -661,7 +804,6 @@ with st.sidebar:
             )
             st.session_state.settings_reset_msg = False
 
-        # 🔑 Use version in widget keys — changing it forces a fresh widget
         v = st.session_state.settings_version
 
         st.markdown('<div class="side-section-title">Default Detail Level</div>', unsafe_allow_html=True)
@@ -710,18 +852,12 @@ with st.sidebar:
             st.rerun()
 
         if st.button("↺  Reset to Defaults", use_container_width=True, key=f"side_reset_settings_v{v}"):
-            # 1. Reset the settings dict
             st.session_state.settings = DEFAULT_SETTINGS.copy()
             save_settings_file(DEFAULT_SETTINGS)
-
-            # 2. 🔑 Bump the version → new widget keys → fresh widget state
             st.session_state.settings_version += 1
-
-            # 3. Also remove main page radio key so it re-inits
             for k in list(st.session_state.keys()):
                 if k.startswith("main_detail_level"):
                     del st.session_state[k]
-
             st.session_state.settings_reset_msg = True
             st.rerun()
 
@@ -749,8 +885,17 @@ with st.sidebar:
             unsafe_allow_html=True
         )
 
+        st.markdown("---")
+        st.markdown('<div class="side-section-title">Providers</div>', unsafe_allow_html=True)
+        active = []
+        if GEMINI_API_KEY: active.append("Gemini")
+        if MISTRAL_API_KEY: active.append("Pixtral")
+        if DEEPSEEK_API_KEY: active.append("DeepSeek")
+        if OPENROUTER_API_KEY: active.append("OpenRouter")
+        st.caption(f"🔗 {', '.join(active) if active else 'None'}")
+
 # ============================================================
-# MAIN PAGE — ANALYZE
+# MAIN PAGE
 # ============================================================
 
 st.markdown(
@@ -769,7 +914,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Main detail radio also uses version so reset propagates
 v = st.session_state.settings_version
 detail_level = st.radio(
     "Detail level",
@@ -833,7 +977,6 @@ if uploaded_file:
             buffered = io.BytesIO()
             img_copy.save(buffered, format="JPEG", quality=88)
             img_bytes = buffered.getvalue()
-            base64_image = base64.b64encode(img_bytes).decode("utf-8")
 
             detail_map = {
                 "Brief": "60 to 80 words",
@@ -842,70 +985,25 @@ if uploaded_file:
             }
             target_len = detail_map.get(detail_level, "100 to 150 words")
 
-            system_prompt = """You are a professional image analyst. Output ONLY the final description of the image — nothing else.
+            prompt = f"""Describe this image in {target_len}. Output ONLY one paragraph — no reasoning, no meta commentary, no thinking.
 
-ABSOLUTE RULES:
-1. Write ONE continuous paragraph in plain English.
-2. NEVER write your thinking, reasoning, or planning.
-3. NEVER start with "The user", "Wait", "Let me", "Looking at", "The image is a", "The prompt", or any meta phrase.
-4. NEVER mention the prompt, the user, panels, sections, or word count.
-5. NEVER use numbered lists, bullets, or headings.
-6. Just describe what is visible, in a natural human voice.
-7. Flow: foreground → middle ground → background → edges → people → environment → colors → positions.
-8. Start directly with the scene, like: "A smiling doctor in a white coat stands..."
+Write ONE continuous paragraph in plain English. Flow: foreground → middle ground → background → edges → people → environment → colors → positions.
 
-Output format:
-<one clean paragraph>
+RULES:
+- NEVER write reasoning or planning.
+- NEVER mention the prompt or the user.
+- NEVER use numbered lists, bullets, or headings.
+- Just describe what is visible in a natural human voice.
+- Start directly with the scene.
 
-That's it. No preamble, no thinking, no explanation."""
+Output the paragraph now."""
 
-            user_prompt = f"""Describe this image in {target_len}. Output ONLY one paragraph — no reasoning, no meta commentary."""
-
-            try:
-                response = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": user_prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}"
-                                    }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=st.session_state.settings["max_tokens"],
-                    temperature=st.session_state.settings["temperature"],
-                    extra_body={"reasoning_effort": "none"}
-                )
-            except Exception:
-                response = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": user_prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}"
-                                    }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=st.session_state.settings["max_tokens"],
-                    temperature=st.session_state.settings["temperature"]
-                )
-
-            answer = response.choices[0].message.content
+            answer, used_provider = analyze_with_fallback(
+                img_bytes,
+                prompt,
+                max_tokens=st.session_state.settings["max_tokens"],
+                temperature=st.session_state.settings["temperature"],
+            )
             answer = clean_response(answer)
 
             scan_placeholder.empty()
@@ -929,15 +1027,17 @@ That's it. No preamble, no thinking, no explanation."""
                     unsafe_allow_html=True
                 )
 
+                st.caption(f"⚡ Vision via {used_provider}")
+
                 with st.expander("📋 Copy as plain text"):
                     st.code(answer, language=None)
 
-                add_history_entry(image, answer, detail_level, MODEL_NAME)
+                add_history_entry(image, answer, detail_level, used_provider)
                 st.success("✅ Saved to history")
 
         except Exception as e:
             scan_placeholder.empty()
-            st.error("⚠️ Analysis failed.")
+            st.error("⚠️ All vision providers failed.")
             st.code(str(e))
 
 else:
